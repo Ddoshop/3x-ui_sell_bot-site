@@ -1,0 +1,442 @@
+const APP_CONFIG = window.APP_CONFIG || {};
+const API_URL = APP_CONFIG.apiUrl || '/api';
+const TG_BOT_USERNAME = (APP_CONFIG.tgBotUsername || '').replace(/^@/, '');
+
+let selectedPlan = null;
+let currentPayment = null;
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+  loadPlans();
+});
+
+// Загрузить тарифы
+async function loadPlans() {
+  try {
+    console.log('Loading plans from:', `${API_URL}/plans`);
+    const response = await fetch(`${API_URL}/plans`);
+    console.log('Response status:', response.status);
+    if (!response.ok) throw new Error('Failed to load plans');
+    
+    const plans = await response.json();
+    console.log('Plans loaded:', plans);
+    renderPlans(plans);
+  } catch (error) {
+    console.error('Error loading plans:', error);
+    document.getElementById('plansGrid').innerHTML = 
+      '<div class="message error">Ошибка загрузки тарифов. Проверьте соединение с сервером.</div>';
+  }
+}
+
+// Отобразить тарифы
+function renderPlans(plans) {
+  const grid = document.getElementById('plansGrid');
+  grid.innerHTML = plans.map((plan, index) => {
+    const isFeatured = index === 1; // Второй тариф как featured
+    return `
+      <div class="plan-card ${isFeatured ? 'featured' : ''}">
+        ${isFeatured ? `<div style="position: absolute; top: -15px; left: 20px;">⭐</div>` : ''}
+        <div class="plan-badge">${plan.badge}</div>
+        <h3 class="plan-title">${plan.title}</h3>
+        <p class="plan-description">${plan.description}</p>
+        
+        <div class="plan-price">${plan.price} ₽</div>
+        <div class="plan-period">за ${plan.days} дней</div>
+        
+        <ul class="plan-features">
+          <li>Полный доступ на ${plan.days} дней</li>
+          <li>Высокая скорость подключения</li>
+          <li>Поддержка всех устройств</li>
+          <li>Техподдержка 24/7</li>
+        </ul>
+        
+        <button class="btn btn-primary plan-button" onclick="selectPlan('${plan.id}')">
+          💳 Заказать тариф
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+// Выбрать тариф
+async function selectPlan(planId) {
+  try {
+    const response = await fetch(`${API_URL}/plans`);
+    const plans = await response.json();
+    selectedPlan = plans.find(p => p.id === planId);
+    
+    if (!selectedPlan) return;
+
+    openPurchaseModal(selectedPlan);
+  } catch (error) {
+    console.error('Error selecting plan:', error);
+    alert('Ошибка: ' + error.message);
+  }
+}
+
+function openPurchaseModal(plan) {
+  const modal = document.getElementById('purchaseModal');
+  const planSummary = document.getElementById('purchasePlanSummary');
+  const usernameInput = document.getElementById('purchaseUsername');
+  const subtitle = document.getElementById('purchaseModalSubtitle');
+  const botLink = document.getElementById('modalBotLink');
+  const botHint = document.getElementById('modalBotHint');
+
+  if (!modal || !planSummary) return;
+
+  planSummary.innerHTML = `
+    <div class="detail-item">
+      <span class="detail-label">Тариф:</span>
+      <span class="detail-value">${plan.title}</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Срок:</span>
+      <span class="detail-value">${plan.days} дней</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Сумма:</span>
+      <span class="detail-value">${plan.price} ₽</span>
+    </div>
+  `;
+
+  currentPayment = null;
+  switchPurchaseStep('start');
+  if (subtitle) {
+    subtitle.textContent = 'Введите ваш Telegram username, чтобы создать заявку на оплату.';
+  }
+  if (botLink) {
+    if (TG_BOT_USERNAME) {
+      botLink.href = `https://t.me/${TG_BOT_USERNAME}`;
+      botLink.textContent = `@${TG_BOT_USERNAME}`;
+      botLink.style.display = 'inline-flex';
+    } else {
+      botLink.removeAttribute('href');
+      botLink.textContent = 'бот не настроен';
+      botLink.style.display = 'inline-flex';
+    }
+  }
+  if (botHint) {
+    botHint.textContent = TG_BOT_USERNAME
+      ? `После получения доступа обязательно напишите боту @${TG_BOT_USERNAME}. Все дальнейшие уведомления по подписке будут приходить туда.`
+      : 'После получения доступа напишите вашему Telegram-боту. Все дальнейшие уведомления по подписке будут приходить туда.';
+  }
+  clearMessage('purchaseModalMessage');
+  clearMessage('modalPaymentMessage');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  if (usernameInput) usernameInput.focus();
+}
+
+function switchPurchaseStep(step) {
+  const start = document.getElementById('purchaseStepStart');
+  const gift = document.getElementById('purchaseStepGift');
+  const payment = document.getElementById('purchaseStepPayment');
+  const planSummary = document.getElementById('purchasePlanSummary');
+
+  if (!start || !gift || !payment || !planSummary) return;
+
+  start.style.display = 'none';
+  gift.style.display = 'none';
+  payment.style.display = 'none';
+  planSummary.style.display = 'block';
+
+  if (step === 'gift') {
+    gift.style.display = 'block';
+    return;
+  }
+
+  if (step === 'payment') {
+    planSummary.style.display = 'none';
+    payment.style.display = 'block';
+    return;
+  }
+
+  start.style.display = 'block';
+}
+
+function openPaymentStep() {
+  const subtitle = document.getElementById('purchaseModalSubtitle');
+  if (subtitle) {
+    subtitle.textContent = 'Реквизиты оплаты. После оплаты нажмите подтверждение ниже.';
+  }
+  clearMessage('modalGiftMessage');
+  switchPurchaseStep('payment');
+}
+
+function closePurchaseModal() {
+  const modal = document.getElementById('purchaseModal');
+  const usernameInput = document.getElementById('purchaseUsername');
+  const giftLinkBox = document.getElementById('modalGiftLinkBox');
+  const giftLinkValue = document.getElementById('modalGiftLinkValue');
+  if (!modal) return;
+
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  switchPurchaseStep('start');
+  clearMessage('purchaseModalMessage');
+  clearMessage('modalGiftMessage');
+  clearMessage('modalPaymentMessage');
+  if (giftLinkBox) giftLinkBox.style.display = 'none';
+  if (giftLinkValue) giftLinkValue.textContent = '';
+  if (usernameInput) {
+    usernameInput.value = '';
+  }
+}
+
+async function createPaymentRequest() {
+  if (!selectedPlan) {
+    showMessage('purchaseModalMessage', 'Сначала выберите тариф', 'error');
+    return;
+  }
+
+  const usernameInput = document.getElementById('purchaseUsername');
+  const rawUsername = usernameInput?.value?.trim() || '';
+  const normalizedUsername = rawUsername.replace(/^@/, '');
+
+  if (!normalizedUsername) {
+    showMessage('purchaseModalMessage', '❌ Укажите Telegram username (например: @nikitoskaaaa)', 'error');
+    return;
+  }
+
+  try {
+    const paymentResponse = await fetch(`${API_URL}/payments/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: `@${normalizedUsername}`,
+        username: normalizedUsername,
+        planId: selectedPlan.id,
+        firstName: normalizedUsername,
+        lastName: ''
+      })
+    });
+
+    if (!paymentResponse.ok) {
+      const err = await paymentResponse.json().catch(() => ({ error: 'Failed to create payment' }));
+      throw new Error(err.error || 'Failed to create payment');
+    }
+
+    currentPayment = await paymentResponse.json();
+    renderModalPaymentDetails(selectedPlan);
+    const purpose = document.getElementById('modalPaymentPurpose');
+    const subtitle = document.getElementById('purchaseModalSubtitle');
+    const giftLinkBox = document.getElementById('modalGiftLinkBox');
+    const giftLinkValue = document.getElementById('modalGiftLinkValue');
+    if (purpose) {
+      purpose.textContent = `Оплата за тариф ${selectedPlan.id} | ID: ${currentPayment.paymentId}`;
+    }
+    const hasNewTrial = Boolean(currentPayment.trial?.granted);
+    if (subtitle) {
+      subtitle.textContent = hasNewTrial
+        ? 'Отлично. Сначала коротко про ваш доступ и установку.'
+        : 'Реквизиты оплаты. После оплаты нажмите подтверждение ниже.';
+    }
+
+    const trialText = document.getElementById('modalGiftTrialText');
+    const accessLink = currentPayment.trial?.subscriptionUrl || currentPayment.accessLink;
+
+    if (currentPayment.trial?.granted) {
+      const trialExpires = new Date(currentPayment.trial.expiresAt).toLocaleString('ru-RU');
+      if (trialText) {
+        trialText.textContent =
+          `Как обещали: пробный доступ уже активирован до ${trialExpires}. После оплаты мы просто продлим текущий сертификат и подписку без смены ссылки.`;
+      }
+    } else {
+      if (trialText) {
+        trialText.textContent =
+          'Пробный доступ уже выдавался ранее. После оплаты мы продлим ваш текущий сертификат и срок подписки.';
+      }
+    }
+
+    if (giftLinkBox && giftLinkValue) {
+      if (accessLink) {
+        giftLinkBox.style.display = 'block';
+        giftLinkValue.textContent = accessLink;
+      } else {
+        giftLinkBox.style.display = 'none';
+        giftLinkValue.textContent = '';
+      }
+    }
+
+    if (hasNewTrial) {
+      switchPurchaseStep('gift');
+    } else {
+      clearMessage('modalGiftMessage');
+      switchPurchaseStep('payment');
+    }
+  } catch (error) {
+    console.error('Error creating payment:', error);
+    showMessage('purchaseModalMessage', `❌ Ошибка создания заявки: ${error.message}`, 'error');
+  }
+}
+
+async function copyGiftAccessLink() {
+  const value = document.getElementById('modalGiftLinkValue')?.textContent?.trim();
+  if (!value) {
+    showMessage('modalGiftMessage', '❌ Ссылка пока недоступна', 'error');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    showMessage('modalGiftMessage', '✅ Ссылка скопирована', 'success');
+  } catch {
+    showMessage('modalGiftMessage', '❌ Не удалось скопировать ссылку', 'error');
+  }
+}
+
+function renderModalPaymentDetails(plan) {
+  const details = document.getElementById('modalPaymentDetails');
+  if (!details) return;
+
+  details.innerHTML = `
+    <div class="detail-item">
+      <span class="detail-label">Тариф:</span>
+      <span class="detail-value">${plan.title}</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Срок действия:</span>
+      <span class="detail-value">${plan.days} дней</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Сумма к оплате:</span>
+      <span class="detail-value" style="color: var(--primary); font-size: 24px; font-weight: 800;">
+        ${plan.price} ₽
+      </span>
+    </div>
+  `;
+}
+
+// Подтвердить платёж
+async function confirmPayment() {
+  if (!currentPayment) {
+    showMessage('modalPaymentMessage', '❌ Сначала создайте заявку на оплату', 'error');
+    return;
+  }
+
+  showMessage('modalPaymentMessage', 'Платёж отправлен администратору на проверку. Вы получите ваучер в Telegram после проверки.', 'info');
+  
+  setTimeout(() => {
+    closePurchaseModal();
+    clearMessage('modalPaymentMessage');
+  }, 3000);
+}
+
+// Вернуться к тарифам
+function backToPlans() {
+  selectedPlan = null;
+  currentPayment = null;
+  closePurchaseModal();
+}
+
+// Активировать ваучер
+async function activateVoucher() {
+  const code = document.getElementById('voucherCode').value.trim().toUpperCase();
+  const usernameInput = document.getElementById('telegramId').value.trim();
+
+  if (!code) {
+    showMessage('voucherMessage', '❌ Введите код ваучера', 'error');
+    return;
+  }
+
+  const voucherRegex = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+  if (!voucherRegex.test(code)) {
+    showMessage('voucherMessage', '❌ Неверный формат кода. Используйте: XXXX-XXXX-XXXX-XXXX', 'error');
+    return;
+  }
+
+  if (!usernameInput) {
+    showMessage('voucherMessage', '❌ Укажите ваш Telegram username (например: @nikitoskaaaa)', 'error');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/vouchers/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        username: usernameInput.replace('@', '')
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error);
+    }
+
+    const result = await response.json();
+    
+    showMessage('voucherMessage', 
+      `✅ Ваучер активирован!\\n${result.planTitle}\\nДействителен до: ${new Date(result.expiresAt).toLocaleString('ru-RU')}`, 
+      'success'
+    );
+
+    // Очистить поле
+    document.getElementById('voucherCode').value = '';
+    
+    setTimeout(() => clearMessage('voucherMessage'), 5000);
+  } catch (error) {
+    console.error('Error:', error);
+    
+    let errorMsg = '❌ Ошибка активации';
+    if (error.message.includes('not found')) errorMsg = '❌ Ваучер не найден';
+    if (error.message.includes('not active')) errorMsg = '❌ Ваучер неактивен или уже использован';
+    
+    showMessage('voucherMessage', errorMsg, 'error');
+  }
+}
+
+// Вспомогательные функции
+function showMessage(elementId, text, type) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.textContent = text;
+  element.className = `message ${type}`;
+  element.style.display = 'block';
+}
+
+function clearMessage(elementId) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.textContent = '';
+  element.className = 'message';
+  element.style.display = 'none';
+}
+
+// Обработка Enter в поле ввода ваучера
+document.addEventListener('DOMContentLoaded', () => {
+  const voucherInput = document.getElementById('voucherCode');
+  if (voucherInput) {
+    voucherInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        activateVoucher();
+      }
+    });
+  }
+
+  const purchaseModal = document.getElementById('purchaseModal');
+  const purchaseUsername = document.getElementById('purchaseUsername');
+
+  if (purchaseModal) {
+    purchaseModal.addEventListener('click', (e) => {
+      if (e.target === purchaseModal) {
+        closePurchaseModal();
+      }
+    });
+  }
+
+  if (purchaseUsername) {
+    purchaseUsername.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        createPaymentRequest();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closePurchaseModal();
+    }
+  });
+});

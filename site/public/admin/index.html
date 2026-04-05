@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ-панель VPN Premium</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="gradient-bg"></div>
+
+  <!-- Навигация -->
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-content">
+        <div class="nav-brand">
+          <span class="brand-emoji">🛡️</span>
+          <span class="brand-name">Админ-панель</span>
+        </div>
+        <div class="nav-menu">
+          <button class="btn-logout" onclick="logout()">🚪 Выход</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Основной контент -->
+  <div class="admin-wrapper">
+    <!-- Боковое меню -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-menu">
+        <button class="menu-item active" onclick="switchTab('dashboard')">
+          <span>📊</span> Дашборд
+        </button>
+        <button class="menu-item" onclick="switchTab('payments')">
+          <span>💳</span> Платежи
+        </button>
+        <button class="menu-item" onclick="switchTab('vouchers')">
+          <span>🎟️</span> Ваучеры
+        </button>
+        <button class="menu-item" onclick="switchTab('create-vouchers')">
+          <span>➕</span> Создать ваучер
+        </button>
+      </div>
+    </aside>
+
+    <!-- Основной контент -->
+    <main class="admin-content">
+      <!-- Дашборд -->
+      <section id="dashboard-tab" class="tab active">
+        <h1 class="page-title">📊 Дашборд</h1>
+        
+        <div class="stats-grid">
+          <div class="stat-card glass-effect">
+            <div class="stat-header">
+              <h3>💰 Всего платежей</h3>
+              <span class="stat-icon">💵</span>
+            </div>
+            <div class="stat-value" id="statTotalPayments">0 ₽</div>
+            <div class="stat-subtitle">за все время</div>
+          </div>
+
+          <div class="stat-card glass-effect">
+            <div class="stat-header">
+              <h3>⏳ Ожидающих подтверждения</h3>
+              <span class="stat-icon">⌛</span>
+            </div>
+            <div class="stat-value" id="statPendingPayments">0</div>
+            <div class="stat-subtitle">платежей</div>
+          </div>
+
+          <div class="stat-card glass-effect">
+            <div class="stat-header">
+              <h3>✅ Подтверждённо</h3>
+              <span class="stat-icon">✔️</span>
+            </div>
+            <div class="stat-value" id="statConfirmedPayments">0</div>
+            <div class="stat-subtitle">платежей</div>
+          </div>
+
+          <div class="stat-card glass-effect">
+            <div class="stat-header">
+              <h3>🎟️ Выданных ваучеров</h3>
+              <span class="stat-icon">📋</span>
+            </div>
+            <div class="stat-value" id="statVouchers">0</div>
+            <div class="stat-subtitle">кодов</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Платежи -->
+      <section id="payments-tab" class="tab">
+        <h1 class="page-title">💳 Управление платежами</h1>
+        
+        <div class="tabs-group">
+          <button class="tab-btn active" onclick="switchPaymentsTab('pending')">
+            ⏳ Ожидающие (0)
+          </button>
+          <button class="tab-btn" onclick="switchPaymentsTab('confirmed')">
+            ✅ Подтверждённые (0)
+          </button>
+        </div>
+
+        <div id="pending-payments-tab" class="payments-list">
+          <!-- Заполняется JS -->
+        </div>
+
+        <div id="confirmed-payments-tab" class="payments-list" style="display: none;">
+          <!-- Заполняется JS -->
+        </div>
+      </section>
+
+      <!-- Ваучеры -->
+      <section id="vouchers-tab" class="tab">
+        <h1 class="page-title">🎟️ Управление ваучерами</h1>
+        
+        <div class="search-box glass-effect">
+          <input 
+            type="text" 
+            id="voucherSearch" 
+            class="input-field"
+            placeholder="🔍 Поиск по коду ваучера..."
+            onkeyup="searchVouchers()"
+          >
+        </div>
+
+        <div id="vouchers-list" class="vouchers-grid">
+          <!-- Заполняется JS -->
+        </div>
+      </section>
+
+      <!-- Создание ваучеров -->
+      <section id="create-vouchers-tab" class="tab">
+        <h1 class="page-title">➕ Создать ваучеры</h1>
+        
+        <div class="create-vouchers-panel glass-effect">
+          <div class="form-group">
+            <label>Выберите тариф:</label>
+            <select id="planSelect" class="input-field">
+              <option value="">-- Выберите тариф --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Количество ваучеров:</label>
+            <input 
+              type="number" 
+              id="voucherQuantity" 
+              class="input-field"
+              value="1"
+              min="1"
+              max="100"
+              step="1"
+            >
+          </div>
+
+          <button class="btn btn-primary btn-large" onclick="createVouchers()">
+            ➕ Создать ваучеры
+          </button>
+
+          <div id="createMessage" class="message"></div>
+
+          <div id="createdVouchers" class="created-vouchers"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+services:
+  api-payments:
+    build:
+      context: ./api-payments
+      dockerfile: Dockerfile
+    container_name: vpn_api_payments
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8788
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ADMIN_TELEGRAM_ID: ${BOT_CHAT_ID}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PUBLIC_BASE_URL: https://${API_DOMAIN:-api.guserv.ru}
+      DB_PATH: /app/data/db.json
+      XUI_PANEL_URL: ${XUI_PANEL_URL}
+      XUI_PUBLIC_URL: ${XUI_PUBLIC_URL}
+      XUI_USERNAME: ${XUI_USERNAME}
+      XUI_PASSWORD: ${XUI_PASSWORD}
+      XUI_INBOUND_ID: ${XUI_INBOUND_ID:-1}
+    volumes:
+      - ./api-payments/data:/app/data
+    ports:
+      - "8788:8788"
+    networks:
+      - vpn_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8788/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  bot-vouchers:
+    build:
+      context: ./bot-vouchers
+      dockerfile: Dockerfile
+    container_name: vpn_bot_vouchers
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BOT_CHAT_ID: ${BOT_CHAT_ID:-}
+      PAYMENTS_API_URL: http://api-payments:8788
+      BRAND_NAME: ${BRAND_NAME:-VPN Premium}
+      BRAND_EMOJI: ${BRAND_EMOJI:-🌐}
+    networks:
+      - vpn_network
+    depends_on:
+      api-payments:
+        condition: service_healthy
+
+  site:
+    build:
+      context: ./site
+      dockerfile: Dockerfile
+    container_name: vpn_site
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_URL: ${API_URL:-http://api-payments:8788}
+      TG_BOT_USERNAME: ${TG_BOT_USERNAME:-}
+    ports:
+      - "3000:3000"
+    networks:
+      - vpn_network
+    depends_on:
+      api-payments:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  vpn_network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local

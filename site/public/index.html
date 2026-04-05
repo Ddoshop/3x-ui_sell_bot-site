@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPN Premium - Быстрое и защищённое соединение</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Градиентный фон -->
+  <div class="gradient-bg"></div>
+  
+  <!-- Навигация -->
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-content">
+        <div class="nav-brand">
+          <span class="brand-emoji">🌐</span>
+          <span class="brand-name">VPN Premium</span>
+        </div>
+        <div class="nav-menu">
+          <a href="#plans" class="nav-link">Тарифы</a>
+          <a href="#voucher" class="nav-link">Активировать</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Герой секция -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <h1 class="hero-title">🌍 Защита и Свобода В Интернете</h1>
+        <p class="hero-subtitle">Надёжный VPN с высокой скоростью, простой активацией через ваучеры и поддержкой 24/7</p>
+        <div class="hero-buttons">
+          <a href="#plans" class="btn btn-primary">📦 Выбрать тариф</a>
+          <a href="#voucher" class="btn btn-secondary">🎟️ У меня есть ваучер</a>
+        </div>
+      </div>
+      <div class="hero-illustration">
+        <div class="floating-box box-1">
+          <span>🛡️</span>
+          <p>Защита</p>
+        </div>
+        <div class="floating-box box-2">
+          <span>⚡</span>
+          <p>Скорость</p>
+        </div>
+        <div class="floating-box box-3">
+          <span>🌐</span>
+          <p>Доступ</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Тарифы -->
+  <section class="plans" id="plans">
+    <div class="container">
+      <h2 class="section-title">💎 Выберите подходящий тариф</h2>
+      <div class="plans-grid" id="plansGrid">
+        <!-- Заполняется JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Ввод ваучера -->
+  <section class="voucher-section" id="voucher">
+    <div class="container">
+      <div class="voucher-card glass-effect">
+        <h2 class="voucher-title">🎟️ Активировать ваучер</h2>
+        <p class="voucher-subtitle">Введите код ваучера в формате XXXX-XXXX-XXXX-XXXX</p>
+        
+        <div class="voucher-form">
+          <div class="form-group">
+            <input 
+              type="text" 
+              id="voucherCode" 
+              class="input-field"
+              placeholder="XXXX-XXXX-XXXX-XXXX"
+              autocomplete="off"
+            >
+            <p class="form-hint">⚠️ Ваучер привязан к вашему Telegram аккаунту</p>
+          </div>
+          
+          <div class="form-group">
+            <input 
+              type="text" 
+              id="telegramId" 
+              class="input-field"
+              placeholder="Ваш Telegram username (например: @nikitoskaaaa)"
+            >
+            <p class="form-hint">Username можно посмотреть в настройках Telegram</p>
+          </div>
+
+          <button class="btn btn-primary btn-large" onclick="activateVoucher()">
+            ✅ Активировать
+          </button>
+
+          <div id="voucherMessage" class="message"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Платёж -->
+  <section class="payment-section" id="payment" style="display: none;">
+    <div class="container">
+      <div class="payment-card glass-effect">
+        <h2 class="payment-title">💳 Способ оплаты</h2>
+        
+        <div class="payment-details" id="paymentDetails">
+          <!-- Заполняется JS -->
+        </div>
+
+        <div class="payment-info glass-effect-2">
+          <h3>📋 Реквизиты для платежа</h3>
+          
+          <div class="details-row">
+            <label>🏢 Получатель:</label>
+            <code>ООО "Компания"</code>
+          </div>
+          
+          <div class="details-row">
+            <label>🆔 ИНН:</label>
+            <code>7700000000</code>
+          </div>
+          
+          <div class="details-row">
+            <label>📊 КПП:</label>
+            <code>040000000</code>
+          </div>
+          
+          <div class="details-row">
+            <label>💳 Счёт:</label>
+            <code>40702840000000000000</code>
+          </div>
+          
+          <div class="details-row">
+            <label>🏦 БИК:</label>
+            <code>044525225</code>
+          </div>
+          
+          <div class="details-row">
+            <label>📨 Корреспондентский счёт:</label>
+            <code>30101810900000000225</code>
+          </div>
+        </div>
+
+        <div class="payment-steps">
+          <h3>📝 Инструкция:</h3>
+          <ol>
+            <li>Откройте банковское приложение или сайт вашего банка</li>
+            <li>Создайте новый платёж по реквизитам выше</li>
+            <li>В поле "Назначение платежа" укажите: <code id="paymentPurpose"></code></li>
+            <li>Отправьте платёж</li>
+            <li>После проверки администратор отправит вам ваучер в Telegram</li>
+          </ol>
+        </div>
+
+        <div class="payment-actions">
+          <button class="btn btn-primary btn-large" onclick="confirmPayment()">
+            ✅ Я отправил платёж
+          </button>
+          <button class="btn btn-secondary" onclick="backToPlans()">
+            ← Назад к тарифам
+          </button>
+        </div>
+
+        <div id="paymentMessage" class="message"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="modal-overlay" id="purchaseModal" aria-hidden="true">
+    <div class="modal-card glass-effect" role="dialog" aria-modal="true" aria-labelledby="purchaseModalTitle">
+      <h3 class="modal-title" id="purchaseModalTitle">🧾 Оформление покупки</h3>
+      <p class="modal-subtitle" id="purchaseModalSubtitle">Введите ваш Telegram username, чтобы создать заявку на оплату.</p>
+
+      <div class="modal-plan" id="purchasePlanSummary"></div>
+
+      <div id="purchaseStepStart">
+        <div class="form-group">
+          <input
+            type="text"
+            id="purchaseUsername"
+            class="input-field username-input"
+            placeholder="Ваш Telegram username (например: @nikitoskaaaa)"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="createPaymentRequest()">✅ Создать заявку</button>
+          <button class="btn btn-secondary" onclick="closePurchaseModal()">Отмена</button>
+        </div>
+
+        <div id="purchaseModalMessage" class="message"></div>
+      </div>
+
+      <div id="purchaseStepGift" style="display: none;">
+        <div class="gift-card">
+          <h4 class="gift-title">🎁 Мы уже выдали вам доступ</h4>
+          <p class="gift-text" id="modalGiftTrialText">
+            Проверяем, доступен ли бонусный пробный доступ.
+          </p>
+
+          <div class="gift-link-box" id="modalGiftLinkBox" style="display: none;">
+            <span class="gift-link-label">🔗 Ваша ссылка доступа:</span>
+            <div class="gift-link-row">
+              <code id="modalGiftLinkValue"></code>
+              <button class="btn btn-secondary" onclick="copyGiftAccessLink()">Копировать</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="gift-card">
+          <h4 class="gift-title">📲 Как установить на любое устройство</h4>
+          <ul class="gift-os-list">
+            <li><strong>Windows:</strong> установите v2rayN или Hiddify, вставьте ссылку подписки.</li>
+            <li><strong>macOS:</strong> используйте v2rayU / Hiddify, импортируйте подписку.</li>
+            <li><strong>Android:</strong> Hiddify Next или v2rayNG, добавьте подписку по URL.</li>
+            <li><strong>iOS:</strong> Streisand / Shadowrocket, импортируйте конфиг из ссылки.</li>
+            <li><strong>Linux:</strong> Hiddify CLI или sing-box, добавьте subscription URL.</li>
+          </ul>
+        </div>
+
+        <div class="gift-card">
+          <h4 class="gift-title">🤖 Уведомления по подписке</h4>
+          <p class="gift-text" id="modalBotHint">
+            После получения доступа напишите боту. Все дальнейшие уведомления по подписке будут приходить туда.
+          </p>
+          <a id="modalBotLink" class="bot-link" href="#" target="_blank" rel="noreferrer">бот не настроен</a>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="openPaymentStep()">➡️ Далее к оплате</button>
+          <button class="btn btn-secondary" onclick="closePurchaseModal()">Закрыть</button>
+        </div>
+
+        <div id="modalGiftMessage" class="message"></div>
+      </div>
+
+      <div id="purchaseStepPayment" style="display: none;">
+        <div class="payment-details" id="modalPaymentDetails"></div>
+
+        <div class="payment-info glass-effect-2 modal-payment-info">
+          <h3>📋 Реквизиты для платежа</h3>
+
+          <div class="details-row">
+            <label>🏢 Получатель:</label>
+            <code>ООО "Компания"</code>
+          </div>
+
+          <div class="details-row">
+            <label>🆔 ИНН:</label>
+            <code>7700000000</code>
+          </div>
+
+          <div class="details-row">
+            <label>📊 КПП:</label>
+            <code>040000000</code>
+          </div>
+
+          <div class="details-row">
+            <label>💳 Счёт:</label>
+            <code>40702840000000000000</code>
+          </div>
+
+          <div class="details-row">
+            <label>🏦 БИК:</label>
+            <code>044525225</code>
+          </div>
+
+          <div class="details-row">
+            <label>📨 Корреспондентский счёт:</label>
+            <code>30101810900000000225</code>
+          </div>
+        </div>
+
+        <div class="payment-steps modal-payment-steps">
+          <h3>📝 Инструкция:</h3>
+          <ol>
+            <li>Откройте банковское приложение или сайт вашего банка</li>
+            <li>Создайте новый платёж по реквизитам выше</li>
+            <li>В поле "Назначение платежа" укажите: <code id="modalPaymentPurpose"></code></li>
+            <li>Отправьте платёж</li>
+            <li>После проверки администратор отправит вам ваучер в Telegram</li>
+          </ol>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="confirmPayment()">✅ Я отправил платёж</button>
+          <button class="btn btn-secondary" onclick="closePurchaseModal()">Закрыть</button>
+        </div>
+
+        <div id="modalPaymentMessage" class="message"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Особенности -->
+  <section class="features">
+    <div class="container">
+      <h2 class="section-title">✨ Почему наш VPN лучше</h2>
+      <div class="features-grid">
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">🚀</div>
+          <h3>Максимальная скорость</h3>
+          <p>Серверы по всему миру для стабильного и быстрого соединения</p>
+        </div>
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">🔒</div>
+          <h3>Полная защита</h3>
+          <p>Шифрование всего трафика с использованием современных алгоритмов</p>
+        </div>
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">📱</div>
+          <h3>Все устройства</h3>
+          <p>Работает на Windows, macOS, iOS, Android и Linux</p>
+        </div>
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">🎟️</div>
+          <h3>Простые ваучеры</h3>
+          <p>Легко активируйте подписку через специальные коды</p>
+        </div>
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">💬</div>
+          <h3>24/7 Поддержка</h3>
+          <p>Команда готова помочь в любой момент</p>
+        </div>
+        <div class="feature-card glass-effect">
+          <div class="feature-icon">🌍</div>
+          <h3>Свобода выбора</h3>
+          <p>Доступ к контенту со всего мира</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Футер -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2024 VPN Premium. Все права защищены.</p>
+      <p>📧 support@vpn.com | 💬 @vpn_support</p>
+    </div>
+  </footer>
+
+  <script src="/config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

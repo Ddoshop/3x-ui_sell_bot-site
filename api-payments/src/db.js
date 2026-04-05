@@ -1,0 +1,231 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_PATH = path.resolve(__dirname, '../data/db.json');
+
+// Инициализация структуры БД
+const INITIAL_DB = {
+  users: [],
+  payments: [],
+  vouchers: [],
+  issuedAccess: [],
+  adminSettings: {
+    plans: [
+      {
+        id: 'vpn-30',
+        title: 'Старт на 30 дней',
+        badge: 'Для знакомства',
+        description: 'Полный доступ для 1 устройства',
+        days: 30,
+        price: 300,
+        currency: 'RUB'
+      },
+      {
+        id: 'vpn-90',
+        title: 'Стандарт на 90 дней',
+        badge: 'Хит продаж',
+        description: 'Оптимальный баланс цены и срока',
+        days: 90,
+        price: 750,
+        currency: 'RUB'
+      },
+      {
+        id: 'vpn-365',
+        title: 'Максимум на 365 дней',
+        badge: 'Максимальная выгода',
+        description: 'Годовой доступ с минимальной ценой',
+        days: 365,
+        price: 2500,
+        currency: 'RUB'
+      }
+    ]
+  }
+};
+
+async function readDb() {
+  try {
+    const data = await fs.readFile(DB_PATH, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return { ...INITIAL_DB };
+  }
+}
+
+async function writeDb(data) {
+  await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// Платежи
+export async function createPayment(paymentData) {
+  const db = await readDb();
+  const payment = {
+    id: crypto.randomUUID(),
+    status: 'pending', // pending, confirmed, failed
+    createdAt: new Date().toISOString(),
+    confirmedAt: null,
+    ...paymentData
+  };
+  db.payments.push(payment);
+  await writeDb(db);
+  return payment;
+}
+
+export async function getPayment(paymentId) {
+  const db = await readDb();
+  return db.payments.find(p => p.id === paymentId) || null;
+}
+
+export async function getPaymentsByUser(userId) {
+  const db = await readDb();
+  return db.payments.filter(p => p.userId === userId);
+}
+
+export async function updatePayment(paymentId, updates) {
+  const db = await readDb();
+  const payment = db.payments.find(p => p.id === paymentId);
+  if (!payment) throw new Error('Payment not found');
+  Object.assign(payment, updates);
+  await writeDb(db);
+  return payment;
+}
+
+// Ваучеры
+export async function createVoucher(voucherData) {
+  const db = await readDb();
+  const voucher = {
+    id: crypto.randomUUID(),
+    code: generateVoucherCode(),
+    status: 'active', // active, used, expired
+    createdAt: new Date().toISOString(),
+    usedAt: null,
+    usedBy: null,
+    linkedPaymentId: null,
+    ...voucherData
+  };
+  db.vouchers.push(voucher);
+  await writeDb(db);
+  return voucher;
+}
+
+export async function getVoucher(code) {
+  const db = await readDb();
+  return db.vouchers.find(v => v.code === code) || null;
+}
+
+export async function getVoucherById(voucherId) {
+  const db = await readDb();
+  return db.vouchers.find(v => v.id === voucherId) || null;
+}
+
+export async function getVouchersByPayment(paymentId) {
+  const db = await readDb();
+  return db.vouchers.filter(v => v.linkedPaymentId === paymentId);
+}
+
+export async function useVoucher(code, userId) {
+  const db = await readDb();
+  const voucher = db.vouchers.find(v => v.code === code);
+  if (!voucher) throw new Error('Voucher not found');
+  if (voucher.status !== 'active') throw new Error('Voucher is not active');
+  
+  Object.assign(voucher, {
+    status: 'used',
+    usedAt: new Date().toISOString(),
+    usedBy: userId
+  });
+  
+  await writeDb(db);
+  return voucher;
+}
+
+export async function getPendingPayments() {
+  const db = await readDb();
+  return db.payments.filter(p => p.status === 'pending');
+}
+
+export async function getConfirmedPayments() {
+  const db = await readDb();
+  return db.payments.filter(p => p.status === 'confirmed');
+}
+
+// Выданный доступ
+export async function saveIssuedAccess(accessData) {
+  const db = await readDb();
+  const access = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    ...accessData
+  };
+  db.issuedAccess.push(access);
+  await writeDb(db);
+  return access;
+}
+
+export async function getIssuedAccessByUser(userId) {
+  const db = await readDb();
+  return db.issuedAccess.filter(a => a.userId === userId);
+}
+
+export async function getLatestIssuedAccessByUser(userId) {
+  const access = await getIssuedAccessByUser(userId);
+  if (!access.length) return null;
+
+  return access
+    .slice()
+    .sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime())[0];
+}
+
+export async function getIssuedAccessByVoucher(voucherId) {
+  const db = await readDb();
+  return db.issuedAccess.filter(a => a.voucherId === voucherId);
+}
+
+// Пользователи
+export async function upsertUser(userData) {
+  const db = await readDb();
+  let user = db.users.find(u => u.telegramId === userData.telegramId);
+  if (!user) {
+    user = {
+      telegramId: userData.telegramId,
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+      username: userData.username || '',
+      telegramChatId: userData.telegramChatId || null,
+      trialIssuedAt: userData.trialIssuedAt || null,
+      createdAt: new Date().toISOString()
+    };
+    db.users.push(user);
+  } else {
+    Object.assign(user, userData);
+  }
+  await writeDb(db);
+  return user;
+}
+
+export async function getUser(telegramId) {
+  const db = await readDb();
+  return db.users.find(u => u.telegramId === telegramId) || null;
+}
+
+// Утилиты
+function generateVoucherCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 16; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  // Формат: XXXX-XXXX-XXXX-XXXX
+  return code.match(/.{1,4}/g).join('-');
+}
+
+export async function getPlans() {
+  const db = await readDb();
+  return db.adminSettings.plans;
+}
+
+export async function getPlanById(planId) {
+  const plans = await getPlans();
+  return plans.find(p => p.id === planId) || null;
+}
