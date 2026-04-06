@@ -499,19 +499,18 @@ body {
 .plan-period {
   color: var(--text-secondary);
   font-size: 14px;
-  margin-bottom: 25px;
+  margin-bottom: 12px;
 }
 
 .plan-features {
   list-style: none;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   flex: 1;
-  max-height: 140px;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .plan-features li {
-  padding: 10px 0;
+  padding: 7px 0;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
