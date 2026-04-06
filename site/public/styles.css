@@ -478,7 +478,7 @@ body {
 
 .plan-description {
   color: var(--text-secondary);
-  margin-bottom: 25px;
+  margin-bottom: 12px;
   font-size: 14px;
   line-height: 1.6;
   display: -webkit-box;
@@ -492,10 +492,8 @@ body {
   font-size: 42px;
   font-weight: 800;
   margin-bottom: 10px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #ffffff;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .plan-period {
