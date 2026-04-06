@@ -134,9 +134,13 @@ function renderPlans(plans) {
     return;
   }
 
-  carouselIndex = Math.max(0, Math.min(carouselIndex, Math.max(0, plans.length - 3)));
+  // Infinite carousel: get 3 visible plans using modulo wrapping
+  const visiblePlans = [];
+  for (let i = 0; i < 3; i++) {
+    const idx = (carouselIndex + i) % plans.length;
+    visiblePlans.push(plans[idx]);
+  }
 
-  const visiblePlans = plans.slice(carouselIndex, carouselIndex + 3);
   const hasNav = plans.length > 3;
 
   grid.innerHTML = `
@@ -146,8 +150,7 @@ function renderPlans(plans) {
       <div class="carousel-content" style="flex: 1;">
         <div class="plans-grid">
           ${visiblePlans.map((plan, idx) => {
-            const globalIdx = carouselIndex + idx;
-            const isFeatured = globalIdx === 1 || (plans.length === 2 && idx === 0) || (plans.length === 1);
+            const isFeatured = idx === 1; // Always highlight the middle one
             return `
               <div class="plan-card ${isFeatured ? 'featured' : ''}">
                 ${isFeatured ? `<div style="position: absolute; top: -15px; left: 20px;">⭐</div>` : ''}
@@ -176,25 +179,17 @@ function renderPlans(plans) {
 
       ${hasNav ? `<button class="carousel-btn carousel-next" onclick="nextPlanSlide()">▶</button>` : ''}
     </div>
-    
-    ${hasNav ? `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: var(--text-secondary);">
-      Тариф ${carouselIndex + 1}–${Math.min(carouselIndex + 3, plans.length)} из ${plans.length}
-    </div>` : ''}
   `;
 }
 
 function nextPlanSlide() {
-  if (carouselIndex < availablePlans.length - 3) {
-    carouselIndex++;
-    renderPlans(availablePlans);
-  }
+  carouselIndex++;
+  renderPlans(availablePlans);
 }
 
 function prevPlanSlide() {
-  if (carouselIndex > 0) {
-    carouselIndex--;
-    renderPlans(availablePlans);
-  }
+  carouselIndex--;
+  renderPlans(availablePlans);
 }
 
 // Выбрать тариф
