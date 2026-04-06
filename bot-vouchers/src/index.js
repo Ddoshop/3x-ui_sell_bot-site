@@ -287,7 +287,7 @@ function clearDeliveryTimers() {
 }
 
 async function getWebhookInfo() {
-  return bot.telegram.callApi('getWebhookInfo');
+  return bot.telegram.callApi('getWebhookInfo', {});
 }
 
 async function stopCurrentDeliveryMode(reason = 'switch') {
