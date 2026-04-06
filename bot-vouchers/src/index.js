@@ -297,10 +297,11 @@ async function stopCurrentDeliveryMode(reason = 'switch') {
     bot.stop(reason);
   } catch {}
 
-  if (webhookServer) {
+  if (webhookServer && typeof webhookServer.close === 'function') {
     await new Promise((resolve) => webhookServer.close(() => resolve()));
-    webhookServer = null;
   }
+
+  webhookServer = null;
 
   currentDeliveryMode = 'stopped';
 }
