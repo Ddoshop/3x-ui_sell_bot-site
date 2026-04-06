@@ -320,9 +320,10 @@ body {
 }
 
 .plans-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  display: flex;
   gap: 30px;
+  align-items: flex-end;
+  justify-content: center;
 }
 
 .empty-state-card {
@@ -356,6 +357,10 @@ body {
   position: relative;
   overflow: hidden;
   transition: all 0.3s;
+  flex: 0 1 320px;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
 }
 
 .plan-card::before {
@@ -376,7 +381,11 @@ body {
 
 .plan-card.featured {
   border: 2px solid var(--primary);
-  transform: scale(1.05);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%);
+  transform: scale(1.08) translateY(-50px);
+  box-shadow: 0 40px 80px rgba(99, 102, 241, 0.35), 0 0 50px rgba(99, 102, 241, 0.2);
+  flex: 0 1 340px;
+  min-height: 460px;
 }
 
 .plan-badge {
@@ -931,11 +940,18 @@ body {
   }
 
   .plans-grid {
-    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .plan-card {
+    flex: 0 1 280px;
+    min-height: 380px;
   }
 
   .plan-card.featured {
-    transform: scale(1);
+    transform: scale(1.05) translateY(-30px);
+    flex: 0 1 300px;
+    min-height: 410px;
   }
 
   .carousel-btn {
