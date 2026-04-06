@@ -151,8 +151,9 @@ function renderPlans(plans) {
         <div class="plans-grid">
           ${visiblePlans.map((plan, idx) => {
             const isFeatured = idx === 1; // Always highlight the middle one
+            const position = idx === 0 ? 'left' : idx === 1 ? 'center' : 'right';
             return `
-              <div class="plan-card ${isFeatured ? 'featured' : ''}">
+              <div class="plan-card ${isFeatured ? 'featured' : ''} plan-${position}">
                 ${isFeatured ? `<div style="position: absolute; top: -15px; left: 20px;">⭐</div>` : ''}
                 <div class="plan-badge">${plan.badge}</div>
                 <h3 class="plan-title">${plan.title}</h3>
