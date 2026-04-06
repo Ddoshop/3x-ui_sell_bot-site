@@ -4,6 +4,10 @@ import { ui, keyboards } from './ui.js';
 import { api } from './services/api.js';
 
 const bot = new Telegraf(config.telegramToken);
+let currentDeliveryMode = 'stopped';
+let webhookServer = null;
+let webhookHealthTimer = null;
+let webhookRecoveryTimer = null;
 
 // Состояния пользователей
 const userStates = new Map();
@@ -271,17 +275,136 @@ bot.command('cancel', async (ctx) => {
   await replyMainMenu(ctx);
 });
 
+function clearDeliveryTimers() {
+  if (webhookHealthTimer) {
+    clearInterval(webhookHealthTimer);
+    webhookHealthTimer = null;
+  }
+  if (webhookRecoveryTimer) {
+    clearInterval(webhookRecoveryTimer);
+    webhookRecoveryTimer = null;
+  }
+}
+
+async function getWebhookInfo() {
+  return bot.telegram.callApi('getWebhookInfo');
+}
+
+async function stopCurrentDeliveryMode(reason = 'switch') {
+  clearDeliveryTimers();
+
+  try {
+    bot.stop(reason);
+  } catch {}
+
+  if (webhookServer) {
+    await new Promise((resolve) => webhookServer.close(() => resolve()));
+    webhookServer = null;
+  }
+
+  currentDeliveryMode = 'stopped';
+}
+
+async function startPollingMode(reason = 'fallback') {
+  if (currentDeliveryMode === 'polling') {
+    return;
+  }
+
+  await stopCurrentDeliveryMode(`to-polling:${reason}`);
+  await bot.telegram.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+  await bot.launch();
+  currentDeliveryMode = 'polling';
+  console.log(`📡 Polling mode enabled (${reason})`);
+
+  if (config.webhookUrl) {
+    webhookRecoveryTimer = setInterval(async () => {
+      try {
+        console.log('🔁 Trying to recover webhook mode...');
+        await startWebhookMode('recovery');
+      } catch (error) {
+        console.error('Webhook recovery attempt failed:', error.message);
+      }
+    }, config.webhookRetryIntervalMs);
+  }
+}
+
+async function waitForWebhookHealthCheck(startedAtSeconds) {
+  const deadline = Date.now() + config.webhookFallbackTimeoutMs;
+
+  while (Date.now() < deadline) {
+    const info = await getWebhookInfo();
+    const lastErrorDate = Number(info.last_error_date || 0);
+    const hasFreshError = lastErrorDate >= startedAtSeconds;
+
+    if (info.url && !hasFreshError) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+
+  return false;
+}
+
+async function monitorWebhookHealth() {
+  if (currentDeliveryMode !== 'webhook') {
+    return;
+  }
+
+  try {
+    const info = await getWebhookInfo();
+    const lastErrorDate = Number(info.last_error_date || 0);
+    const hasRecentError = lastErrorDate > 0 && (Date.now() / 1000 - lastErrorDate) <= Math.ceil(config.webhookFallbackTimeoutMs / 1000);
+
+    if (hasRecentError) {
+      console.error(`Webhook health degraded: ${info.last_error_message || 'unknown error'}`);
+      await startPollingMode('webhook-health-failed');
+    }
+  } catch (error) {
+    console.error('Webhook health check failed:', error.message);
+  }
+}
+
+async function startWebhookMode(reason = 'startup') {
+  if (!config.webhookUrl) {
+    throw new Error('WEBHOOK_URL is not configured');
+  }
+
+  const webhookUrl = `${config.webhookUrl.replace(/\/$/, '')}${config.webhookPath}`;
+  const startedAtSeconds = Math.floor(Date.now() / 1000);
+
+  await stopCurrentDeliveryMode(`to-webhook:${reason}`);
+  await bot.telegram.setWebhook(webhookUrl);
+  webhookServer = await bot.startWebhook(config.webhookPath, null, config.webhookPort);
+
+  const isHealthy = await waitForWebhookHealthCheck(startedAtSeconds);
+  if (!isHealthy) {
+    console.error(`Webhook mode check failed after ${config.webhookFallbackTimeoutMs}ms, switching to polling`);
+    await startPollingMode('webhook-timeout');
+    return false;
+  }
+
+  currentDeliveryMode = 'webhook';
+  console.log(`🌐 Webhook mode enabled (${reason}): ${webhookUrl}`);
+  webhookHealthTimer = setInterval(() => {
+    monitorWebhookHealth().catch((error) => {
+      console.error('Webhook monitor failure:', error.message);
+    });
+  }, config.webhookHealthIntervalMs);
+
+  return true;
+}
+
 // Запуск
 console.log('🤖 VPN Vouchers Bot starting...');
 
 if (config.webhookUrl) {
-  const webhookUrl = `${config.webhookUrl.replace(/\/$/, '')}${config.webhookPath}`;
-  await bot.telegram.setWebhook(webhookUrl);
-  bot.startWebhook(config.webhookPath, null, config.webhookPort);
-  console.log(`🌐 Webhook mode enabled: ${webhookUrl}`);
+  await startWebhookMode('startup');
+  if (currentDeliveryMode !== 'webhook') {
+    console.log('Webhook unavailable, bot continues in polling mode');
+  }
 } else {
-  await bot.launch();
-  console.log('📡 Polling mode enabled');
+  await startPollingMode('no-webhook-config');
 }
 
 process.once('SIGINT', () => bot.stop('SIGINT'));

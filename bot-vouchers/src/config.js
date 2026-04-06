@@ -18,5 +18,8 @@ export const config = {
   supportTelegramId: process.env.BOT_CHAT_ID || '',
   webhookUrl: process.env.WEBHOOK_URL || '',
   webhookPath: process.env.WEBHOOK_PATH || '/bot-webhook',
-  webhookPort: Number(process.env.WEBHOOK_PORT || 8080)
+  webhookPort: Number(process.env.WEBHOOK_PORT || 8080),
+  webhookFallbackTimeoutMs: Number(process.env.WEBHOOK_FALLBACK_TIMEOUT_MS || 30000),
+  webhookRetryIntervalMs: Number(process.env.WEBHOOK_RETRY_INTERVAL_MS || 3600000),
+  webhookHealthIntervalMs: Number(process.env.WEBHOOK_HEALTH_INTERVAL_MS || 30000)
 };
