@@ -1,6 +1,8 @@
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_URL = APP_CONFIG.apiUrl || '/api';
 const TG_BOT_USERNAME = (APP_CONFIG.tgBotUsername || '').replace(/^@/, '');
+const BRAND_NAME = APP_CONFIG.brandName || 'VPN Premium';
+const BRAND_EMOJI = APP_CONFIG.brandEmoji || '🌐';
 
 let selectedPlan = null;
 let currentPayment = null;
@@ -16,8 +18,29 @@ function setStoredUsername(username) {
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
+  applyBranding();
   loadPlans();
 });
+
+function applyBranding() {
+  const title = document.querySelector('title');
+  const brandNameEl = document.querySelector('.brand-name');
+  const brandEmojiEl = document.querySelector('.brand-emoji');
+  const footerBrand = document.getElementById('footerBrandName');
+
+  if (title) {
+    title.textContent = `${BRAND_NAME} - Быстрое и защищённое соединение`;
+  }
+  if (brandNameEl) {
+    brandNameEl.textContent = BRAND_NAME;
+  }
+  if (brandEmojiEl) {
+    brandEmojiEl.textContent = BRAND_EMOJI;
+  }
+  if (footerBrand) {
+    footerBrand.textContent = BRAND_NAME;
+  }
+}
 
 // Загрузить тарифы
 async function loadPlans() {

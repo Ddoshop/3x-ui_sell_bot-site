@@ -51,7 +51,9 @@ app.get('/config.js', (req, res) => {
   res.send(
     `window.APP_CONFIG = ${JSON.stringify({
       apiUrl: '/api',
-      tgBotUsername: process.env.TG_BOT_USERNAME || ''
+      tgBotUsername: process.env.TG_BOT_USERNAME || '',
+      brandName: process.env.BRAND_NAME || 'VPN Premium',
+      brandEmoji: process.env.BRAND_EMOJI || '🌐'
     })};`
   );
 });
