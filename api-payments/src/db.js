@@ -91,6 +91,15 @@ export async function updatePayment(paymentId, updates) {
   return payment;
 }
 
+export async function deletePayment(paymentId) {
+  const db = await readDb();
+  const index = db.payments.findIndex(p => p.id === paymentId);
+  if (index === -1) return false;
+  db.payments.splice(index, 1);
+  await writeDb(db);
+  return true;
+}
+
 // Ваучеры
 export async function createVoucher(voucherData) {
   const db = await readDb();
@@ -182,6 +191,20 @@ export async function getIssuedAccessByVoucher(voucherId) {
   return db.issuedAccess.filter(a => a.voucherId === voucherId);
 }
 
+export async function getTrialAccessBySourcePayment(paymentId) {
+  const db = await readDb();
+  return db.issuedAccess.find(a => a.sourcePaymentId === paymentId && a.isTrial) || null;
+}
+
+export async function deleteIssuedAccess(accessId) {
+  const db = await readDb();
+  const index = db.issuedAccess.findIndex(a => a.id === accessId);
+  if (index === -1) return false;
+  db.issuedAccess.splice(index, 1);
+  await writeDb(db);
+  return true;
+}
+
 // Пользователи
 export async function upsertUser(userData) {
   const db = await readDb();
@@ -207,6 +230,15 @@ export async function upsertUser(userData) {
 export async function getUser(telegramId) {
   const db = await readDb();
   return db.users.find(u => u.telegramId === telegramId) || null;
+}
+
+export async function clearUserTrialIssuedAt(telegramId) {
+  const db = await readDb();
+  const user = db.users.find(u => u.telegramId === telegramId);
+  if (!user) return false;
+  user.trialIssuedAt = null;
+  await writeDb(db);
+  return true;
 }
 
 // Утилиты

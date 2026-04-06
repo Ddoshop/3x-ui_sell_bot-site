@@ -318,13 +318,70 @@ function copyToClipboard(text) {
 // Заполнить выбор тарифов
 function populatePlanSelect() {
   const select = document.getElementById('planSelect');
-  if (!select) return;
+  const targetSelect = document.getElementById('targetPlanSelect');
+  if (!select && !targetSelect) return;
 
   const options = allPlans.map(plan => `
     <option value="${plan.id}">${plan.title} (${plan.price}₽)</option>
   `).join('');
 
-  select.innerHTML = '<option value="">-- Выберите тариф --</option>' + options;
+  if (select) {
+    select.innerHTML = '<option value="">-- Выберите тариф --</option>' + options;
+  }
+  if (targetSelect) {
+    targetSelect.innerHTML = '<option value="">-- Выберите тариф --</option>' + options;
+  }
+}
+
+async function createVoucherForUser() {
+  const usernameRaw = document.getElementById('targetUsername').value.trim();
+  const planId = document.getElementById('targetPlanSelect').value;
+
+  if (!usernameRaw) {
+    showMessage('createUserVoucherMessage', '❌ Укажите Telegram username', 'error');
+    return;
+  }
+  if (!planId) {
+    showMessage('createUserVoucherMessage', '❌ Выберите тариф', 'error');
+    return;
+  }
+
+  const normalizedUsername = usernameRaw.replace(/^@/, '');
+
+  try {
+    const response = await fetch(`${API_URL}/admin/vouchers/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        planId,
+        quantity: 1,
+        username: normalizedUsername
+      })
+    });
+
+    if (!response.ok) throw new Error('Failed to create voucher');
+
+    const result = await response.json();
+    const voucher = result.vouchers?.[0];
+
+    showMessage('createUserVoucherMessage', `✅ Ваучер создан для @${normalizedUsername}`, 'success');
+    document.getElementById('createdUserVoucher').innerHTML = voucher
+      ? `
+      <div class="created-vouchers-title">📋 Код для @${normalizedUsername}:</div>
+      <div class="created-vouchers-list">
+        <div class="created-voucher-code">
+          <span>${voucher.code}</span>
+          <button class="copy-button" onclick="copyToClipboard('${voucher.code}')">📋 Копировать</button>
+        </div>
+      </div>
+      `
+      : '';
+  } catch (error) {
+    showMessage('createUserVoucherMessage', `❌ Ошибка: ${error.message}`, 'error');
+  }
 }
 
 // Переключение вкладок

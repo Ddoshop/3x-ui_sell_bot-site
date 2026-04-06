@@ -17,10 +17,14 @@ import {
   getPlans,
   getPlanById,
   getVouchersByPayment,
-  saveIssuedAccess
+  saveIssuedAccess,
+  deletePayment,
+  getTrialAccessBySourcePayment,
+  deleteIssuedAccess,
+  clearUserTrialIssuedAt
 } from './db.js';
 import { config } from './config.js';
-import { createXuiClient, extendXuiClient, getXuiInbounds } from './xui.js';
+import { createXuiClient, extendXuiClient, removeXuiClient, getXuiInbounds } from './xui.js';
 
 function normalizeUsername(input = '') {
   return String(input).trim().replace(/^@/, '');
@@ -202,6 +206,40 @@ app.get('/api/payments/:paymentId', async (req, res) => {
   }
 });
 
+// PUBLIC: Отменить незавершённый платёж и откатить trial-доступ
+app.post('/api/payments/:paymentId/cancel', async (req, res) => {
+  try {
+    const payment = await getPayment(req.params.paymentId);
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+    if (payment.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending payment can be canceled' });
+    }
+
+    const normalizedUsername = normalizeUsername(payment.userId);
+    const trialAccess = await getTrialAccessBySourcePayment(payment.id);
+
+    if (trialAccess) {
+      if (trialAccess.xuiClientId) {
+        try {
+          await removeXuiClient(trialAccess.xuiClientId);
+        } catch (removeError) {
+          console.error('Failed to remove trial xui client:', removeError.message);
+        }
+      }
+
+      await deleteIssuedAccess(trialAccess.id);
+      await clearUserTrialIssuedAt(normalizedUsername);
+    }
+
+    await deletePayment(payment.id);
+
+    res.json({ success: true, canceled: true, trialRevoked: Boolean(trialAccess) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ADMIN: Подтвердить платёж и продлить доступ
 app.post('/api/admin/payments/:paymentId/confirm', adminAuth, async (req, res) => {
   try {
@@ -326,6 +364,9 @@ app.post('/api/vouchers/activate', async (req, res) => {
     if (voucher.status !== 'active') {
       return res.status(400).json({ error: 'Voucher is not active' });
     }
+    if (voucher.assignedUsername && normalizeUsername(voucher.assignedUsername) !== normalizedUsername) {
+      return res.status(403).json({ error: 'Voucher is bound to another user' });
+    }
 
     const plan = await getPlanById(voucher.planId);
     if (!plan) return res.status(404).json({ error: 'Plan not found' });
@@ -400,12 +441,17 @@ app.get('/api/users/:userId/subscriptions', async (req, res) => {
 // ADMIN: Создать ваучер вручную
 app.post('/api/admin/vouchers/create', adminAuth, async (req, res) => {
   try {
-    const { planId, quantity = 1 } = req.body;
+    const { planId, quantity = 1, username } = req.body;
     if (!planId) return res.status(400).json({ error: 'Plan ID required' });
+
+    const normalizedUsername = username ? normalizeUsername(username) : '';
 
     const vouchers = [];
     for (let i = 0; i < quantity; i++) {
-      const voucher = await createVoucher({ planId });
+      const voucher = await createVoucher({
+        planId,
+        assignedUsername: normalizedUsername || null
+      });
       vouchers.push(voucher);
     }
 

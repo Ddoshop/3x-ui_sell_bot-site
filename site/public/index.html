@@ -20,7 +20,7 @@
         </div>
         <div class="nav-menu">
           <a href="#plans" class="nav-link">Тарифы</a>
-          <a href="#voucher" class="nav-link">Активировать</a>
+          <a href="#voucher" class="nav-link" onclick="openVoucherSection(); return false;">Активировать</a>
         </div>
       </div>
     </div>
@@ -31,10 +31,10 @@
     <div class="container">
       <div class="hero-content">
         <h1 class="hero-title">🌍 Защита и Свобода В Интернете</h1>
-        <p class="hero-subtitle">Надёжный VPN с высокой скоростью, простой активацией через ваучеры и поддержкой 24/7</p>
+        <p class="hero-subtitle">Надёжный VPN с высокой скоростью и поддержкой 24/7</p>
         <div class="hero-buttons">
           <a href="#plans" class="btn btn-primary">📦 Выбрать тариф</a>
-          <a href="#voucher" class="btn btn-secondary">🎟️ У меня есть ваучер</a>
+          <button type="button" class="btn btn-secondary" onclick="openVoucherSection()">🎟️ У меня есть ваучер</button>
         </div>
       </div>
       <div class="hero-illustration">
@@ -65,7 +65,7 @@
   </section>
 
   <!-- Ввод ваучера -->
-  <section class="voucher-section" id="voucher">
+  <section class="voucher-section" id="voucher" style="display: none;">
     <div class="container">
       <div class="voucher-card glass-effect">
         <h2 class="voucher-title">🎟️ Активировать ваучер</h2>
@@ -83,16 +83,6 @@
             <p class="form-hint">⚠️ Ваучер привязан к вашему Telegram аккаунту</p>
           </div>
           
-          <div class="form-group">
-            <input 
-              type="text" 
-              id="telegramId" 
-              class="input-field"
-              placeholder="Ваш Telegram username (например: @nikitoskaaaa)"
-            >
-            <p class="form-hint">Username можно посмотреть в настройках Telegram</p>
-          </div>
-
           <button class="btn btn-primary btn-large" onclick="activateVoucher()">
             ✅ Активировать
           </button>
@@ -117,33 +107,23 @@
           <h3>📋 Реквизиты для платежа</h3>
           
           <div class="details-row">
-            <label>🏢 Получатель:</label>
-            <code>ООО "Компания"</code>
+            <label>👤 Получатель:</label>
+            <code>Иванов И.И.</code>
           </div>
           
           <div class="details-row">
-            <label>🆔 ИНН:</label>
-            <code>7700000000</code>
+            <label>🏦 Банк:</label>
+            <code>ПАО Сбербанк</code>
           </div>
           
           <div class="details-row">
-            <label>📊 КПП:</label>
-            <code>040000000</code>
+            <label>📱 Телефон:</label>
+            <code>+7 900 123-45-67</code>
           </div>
           
           <div class="details-row">
-            <label>💳 Счёт:</label>
-            <code>40702840000000000000</code>
-          </div>
-          
-          <div class="details-row">
-            <label>🏦 БИК:</label>
-            <code>044525225</code>
-          </div>
-          
-          <div class="details-row">
-            <label>📨 Корреспондентский счёт:</label>
-            <code>30101810900000000225</code>
+            <label>💰 Сумма:</label>
+            <code id="legacyPaymentAmount">—</code>
           </div>
         </div>
 
@@ -151,10 +131,10 @@
           <h3>📝 Инструкция:</h3>
           <ol>
             <li>Откройте банковское приложение или сайт вашего банка</li>
-            <li>Создайте новый платёж по реквизитам выше</li>
-            <li>В поле "Назначение платежа" укажите: <code id="paymentPurpose"></code></li>
-            <li>Отправьте платёж</li>
-            <li>После проверки администратор отправит вам ваучер в Telegram</li>
+            <li>Выберите перевод по номеру телефона</li>
+            <li>Введите реквизиты получателя выше и сумму</li>
+            <li>Отправьте перевод</li>
+            <li>После проверки мы продлим подписку и отправим уведомление в Telegram</li>
           </ol>
         </div>
 
@@ -248,33 +228,23 @@
           <h3>📋 Реквизиты для платежа</h3>
 
           <div class="details-row">
-            <label>🏢 Получатель:</label>
-            <code>ООО "Компания"</code>
+            <label>👤 Получатель:</label>
+            <code>Иванов И.И.</code>
           </div>
 
           <div class="details-row">
-            <label>🆔 ИНН:</label>
-            <code>7700000000</code>
+            <label>🏦 Банк:</label>
+            <code>ПАО Сбербанк</code>
           </div>
 
           <div class="details-row">
-            <label>📊 КПП:</label>
-            <code>040000000</code>
+            <label>📱 Телефон:</label>
+            <code>+7 900 123-45-67</code>
           </div>
 
           <div class="details-row">
-            <label>💳 Счёт:</label>
-            <code>40702840000000000000</code>
-          </div>
-
-          <div class="details-row">
-            <label>🏦 БИК:</label>
-            <code>044525225</code>
-          </div>
-
-          <div class="details-row">
-            <label>📨 Корреспондентский счёт:</label>
-            <code>30101810900000000225</code>
+            <label>💰 Сумма:</label>
+            <code id="modalPaymentAmount">—</code>
           </div>
         </div>
 
@@ -282,10 +252,10 @@
           <h3>📝 Инструкция:</h3>
           <ol>
             <li>Откройте банковское приложение или сайт вашего банка</li>
-            <li>Создайте новый платёж по реквизитам выше</li>
-            <li>В поле "Назначение платежа" укажите: <code id="modalPaymentPurpose"></code></li>
-            <li>Отправьте платёж</li>
-            <li>После проверки администратор отправит вам ваучер в Telegram</li>
+            <li>Выберите перевод по номеру телефона</li>
+            <li>Введите реквизиты получателя выше и сумму</li>
+            <li>Отправьте перевод</li>
+            <li>После проверки мы продлим подписку и отправим уведомление в Telegram</li>
           </ol>
         </div>
 
@@ -320,9 +290,9 @@
           <p>Работает на Windows, macOS, iOS, Android и Linux</p>
         </div>
         <div class="feature-card glass-effect">
-          <div class="feature-icon">🎟️</div>
-          <h3>Простые ваучеры</h3>
-          <p>Легко активируйте подписку через специальные коды</p>
+          <div class="feature-icon">⚙️</div>
+          <h3>Простая настройка</h3>
+          <p>Быстрый запуск и удобное подключение за пару минут</p>
         </div>
         <div class="feature-card glass-effect">
           <div class="feature-icon">💬</div>

@@ -4,6 +4,15 @@ const TG_BOT_USERNAME = (APP_CONFIG.tgBotUsername || '').replace(/^@/, '');
 
 let selectedPlan = null;
 let currentPayment = null;
+let paymentMarkedSent = false;
+
+function getStoredUsername() {
+  return localStorage.getItem('vpnUsername') || '';
+}
+
+function setStoredUsername(username) {
+  localStorage.setItem('vpnUsername', username.replace(/^@/, ''));
+}
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
@@ -100,6 +109,7 @@ function openPurchaseModal(plan) {
   `;
 
   currentPayment = null;
+  paymentMarkedSent = false;
   switchPurchaseStep('start');
   if (subtitle) {
     subtitle.textContent = 'Введите ваш Telegram username, чтобы создать заявку на оплату.';
@@ -125,6 +135,13 @@ function openPurchaseModal(plan) {
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
   if (usernameInput) usernameInput.focus();
+}
+
+function openVoucherSection() {
+  const section = document.getElementById('voucher');
+  if (!section) return;
+  section.style.display = 'block';
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function switchPurchaseStep(step) {
@@ -163,12 +180,30 @@ function openPaymentStep() {
   switchPurchaseStep('payment');
 }
 
-function closePurchaseModal() {
+async function cancelPendingPaymentIfNeeded() {
+  if (!currentPayment || paymentMarkedSent) return;
+
+  try {
+    await fetch(`${API_URL}/payments/${currentPayment.paymentId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'modal_closed' })
+    });
+  } catch (error) {
+    console.error('Failed to cancel pending payment:', error);
+  }
+
+  currentPayment = null;
+}
+
+async function closePurchaseModal() {
   const modal = document.getElementById('purchaseModal');
   const usernameInput = document.getElementById('purchaseUsername');
   const giftLinkBox = document.getElementById('modalGiftLinkBox');
   const giftLinkValue = document.getElementById('modalGiftLinkValue');
   if (!modal) return;
+
+  await cancelPendingPaymentIfNeeded();
 
   modal.classList.remove('open');
   modal.setAttribute('aria-hidden', 'true');
@@ -181,6 +216,7 @@ function closePurchaseModal() {
   if (usernameInput) {
     usernameInput.value = '';
   }
+  paymentMarkedSent = false;
 }
 
 async function createPaymentRequest() {
@@ -217,14 +253,11 @@ async function createPaymentRequest() {
     }
 
     currentPayment = await paymentResponse.json();
+    setStoredUsername(normalizedUsername);
     renderModalPaymentDetails(selectedPlan);
-    const purpose = document.getElementById('modalPaymentPurpose');
     const subtitle = document.getElementById('purchaseModalSubtitle');
     const giftLinkBox = document.getElementById('modalGiftLinkBox');
     const giftLinkValue = document.getElementById('modalGiftLinkValue');
-    if (purpose) {
-      purpose.textContent = `Оплата за тариф ${selectedPlan.id} | ID: ${currentPayment.paymentId}`;
-    }
     const hasNewTrial = Boolean(currentPayment.trial?.granted);
     if (subtitle) {
       subtitle.textContent = hasNewTrial
@@ -305,6 +338,16 @@ function renderModalPaymentDetails(plan) {
       </span>
     </div>
   `;
+
+  const modalAmount = document.getElementById('modalPaymentAmount');
+  if (modalAmount) {
+    modalAmount.textContent = `${plan.price} ₽`;
+  }
+
+  const legacyAmount = document.getElementById('legacyPaymentAmount');
+  if (legacyAmount) {
+    legacyAmount.textContent = `${plan.price} ₽`;
+  }
 }
 
 // Подтвердить платёж
@@ -314,7 +357,8 @@ async function confirmPayment() {
     return;
   }
 
-  showMessage('modalPaymentMessage', 'Платёж отправлен администратору на проверку. Вы получите ваучер в Telegram после проверки.', 'info');
+  paymentMarkedSent = true;
+  showMessage('modalPaymentMessage', 'Платёж отправлен администратору на проверку. После проверки мы продлим подписку и отправим уведомление в Telegram.', 'info');
   
   setTimeout(() => {
     closePurchaseModal();
@@ -332,7 +376,7 @@ function backToPlans() {
 // Активировать ваучер
 async function activateVoucher() {
   const code = document.getElementById('voucherCode').value.trim().toUpperCase();
-  const usernameInput = document.getElementById('telegramId').value.trim();
+  const storedUsername = getStoredUsername();
 
   if (!code) {
     showMessage('voucherMessage', '❌ Введите код ваучера', 'error');
@@ -345,8 +389,8 @@ async function activateVoucher() {
     return;
   }
 
-  if (!usernameInput) {
-    showMessage('voucherMessage', '❌ Укажите ваш Telegram username (например: @nikitoskaaaa)', 'error');
+  if (!storedUsername) {
+    showMessage('voucherMessage', '❌ Сначала создайте заявку на оплату, чтобы привязать Telegram username', 'error');
     return;
   }
 
@@ -356,7 +400,7 @@ async function activateVoucher() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: code,
-        username: usernameInput.replace('@', '')
+        username: storedUsername
       })
     });
 
@@ -382,6 +426,7 @@ async function activateVoucher() {
     let errorMsg = '❌ Ошибка активации';
     if (error.message.includes('not found')) errorMsg = '❌ Ваучер не найден';
     if (error.message.includes('not active')) errorMsg = '❌ Ваучер неактивен или уже использован';
+    if (error.message.includes('bound')) errorMsg = '❌ Этот ваучер привязан к другому Telegram username';
     
     showMessage('voucherMessage', errorMsg, 'error');
   }

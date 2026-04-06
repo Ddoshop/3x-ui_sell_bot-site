@@ -42,6 +42,9 @@
         <button class="menu-item" onclick="switchTab('create-vouchers')">
           <span>➕</span> Создать ваучер
         </button>
+        <button class="menu-item" onclick="switchTab('create-user-voucher')">
+          <span>👤</span> Ваучер для username
+        </button>
       </div>
     </aside>
 
@@ -163,6 +166,36 @@
           <div id="createMessage" class="message"></div>
 
           <div id="createdVouchers" class="created-vouchers"></div>
+        </div>
+      </section>
+
+      <section id="create-user-voucher-tab" class="tab">
+        <h1 class="page-title">👤 Ваучер для Telegram username</h1>
+
+        <div class="create-vouchers-panel glass-effect">
+          <div class="form-group">
+            <label>Telegram username:</label>
+            <input
+              type="text"
+              id="targetUsername"
+              class="input-field"
+              placeholder="например: nikitoskaaaa или @nikitoskaaaa"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Выберите тариф:</label>
+            <select id="targetPlanSelect" class="input-field">
+              <option value="">-- Выберите тариф --</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary btn-large" onclick="createVoucherForUser()">
+            🎟️ Создать ваучер для пользователя
+          </button>
+
+          <div id="createUserVoucherMessage" class="message"></div>
+          <div id="createdUserVoucher" class="created-vouchers"></div>
         </div>
       </section>
     </main>
