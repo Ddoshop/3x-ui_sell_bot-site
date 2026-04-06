@@ -62,6 +62,8 @@ services:
       PORT: 3000
       API_URL: ${API_URL:-http://api-payments:8788}
       TG_BOT_USERNAME: ${TG_BOT_USERNAME:-}
+      BRAND_NAME: ${BRAND_NAME:-VPN Premium}
+      BRAND_EMOJI: ${BRAND_EMOJI:-🌐}
     ports:
       - "3000:3000"
     networks:
