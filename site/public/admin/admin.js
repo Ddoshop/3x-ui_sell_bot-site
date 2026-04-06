@@ -310,17 +310,28 @@ function renderAdminPlans() {
   const root = document.getElementById('plans-admin-list');
   if (!root) return;
 
-  root.innerHTML = allPlans.map(plan => `
-    <div class="payment-item" style="display:block;">
-      <div class="payment-user">${plan.title} <span style="color: var(--text-secondary);">(${plan.id})</span></div>
-      <div class="form-group"><input class="input-field" id="plan_title_${plan.id}" value="${plan.title}"></div>
-      <div class="form-group"><input class="input-field" id="plan_badge_${plan.id}" value="${plan.badge || ''}"></div>
-      <div class="form-group"><input class="input-field" id="plan_description_${plan.id}" value="${plan.description || ''}"></div>
-      <div class="form-group"><input class="input-field" id="plan_days_${plan.id}" type="number" value="${plan.days}"></div>
-      <div class="form-group"><input class="input-field" id="plan_price_${plan.id}" type="number" value="${plan.price}"></div>
-      <button class="btn btn-primary" onclick="savePlan('${plan.id}')">💾 Сохранить</button>
-    </div>
-  `).join('');
+  root.innerHTML = allPlans.map(plan => {
+    const statusClass = plan.enabled ? 'status-confirmed' : 'status-pending';
+    const statusText = plan.enabled ? '✅ Включен' : '⛔ Выключен';
+    return `
+      <div class="payment-item" style="display:block;">
+        <div class="payment-user">
+          ${plan.title} <span style="color: var(--text-secondary);">(${plan.id})</span>
+          <span class="payment-status ${statusClass}" style="margin-left: 10px;">${statusText}</span>
+        </div>
+        <div class="form-group"><input class="input-field" id="plan_title_${plan.id}" value="${plan.title}"></div>
+        <div class="form-group"><input class="input-field" id="plan_badge_${plan.id}" value="${plan.badge || ''}"></div>
+        <div class="form-group"><input class="input-field" id="plan_description_${plan.id}" value="${plan.description || ''}"></div>
+        <div class="form-group"><input class="input-field" id="plan_days_${plan.id}" type="number" value="${plan.days}"></div>
+        <div class="form-group"><input class="input-field" id="plan_price_${plan.id}" type="number" value="${plan.price}"></div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" onclick="savePlan('${plan.id}')" style="flex: 1;">💾 Сохранить</button>
+          <button class="btn btn-secondary" onclick="togglePlan('${plan.id}')" style="flex: 1;">${plan.enabled ? '⛔ Выключить' : '✅ Включить'}</button>
+          <button class="btn btn-danger" onclick="deletePlan('${plan.id}')" style="flex: 1;">🗑️ Удалить</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function savePlan(planId) {
@@ -376,6 +387,38 @@ async function createPlanAdmin() {
     await loadAdminPlans();
   } catch (error) {
     showMessage('createPlanMessage', `❌ Ошибка: ${error.message}`, 'error');
+  }
+}
+
+async function togglePlan(planId) {
+  try {
+    const response = await fetch(`${API_URL}/admin/plans/${planId}/toggle`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to toggle plan');
+    await loadAdminPlans();
+    alert('✅ Статус тарифа изменен');
+  } catch (error) {
+    alert(`❌ Ошибка: ${error.message}`);
+  }
+}
+
+async function deletePlan(planId) {
+  if (!confirm('Вы уверены? Удаление необратимо.')) return;
+
+  try {
+    const response = await fetch(`${API_URL}/admin/plans/${planId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to delete plan');
+    await loadAdminPlans();
+    alert('✅ Тариф удален');
+  } catch (error) {
+    alert(`❌ Ошибка: ${error.message}`);
   }
 }
 

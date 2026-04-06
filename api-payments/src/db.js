@@ -30,7 +30,8 @@ const INITIAL_DB = {
         description: 'Полный доступ для 1 устройства',
         days: 30,
         price: 300,
-        currency: 'RUB'
+        currency: 'RUB',
+        enabled: true
       },
       {
         id: 'vpn-90',
@@ -39,7 +40,8 @@ const INITIAL_DB = {
         description: 'Оптимальный баланс цены и срока',
         days: 90,
         price: 750,
-        currency: 'RUB'
+        currency: 'RUB',
+        enabled: true
       },
       {
         id: 'vpn-365',
@@ -48,7 +50,8 @@ const INITIAL_DB = {
         description: 'Годовой доступ с минимальной ценой',
         days: 365,
         price: 2500,
-        currency: 'RUB'
+        currency: 'RUB',
+        enabled: true
       }
     ]
   }
@@ -89,6 +92,11 @@ function normalizeDb(data) {
   if (!Array.isArray(db.adminSettings.plans) || !db.adminSettings.plans.length) {
     db.adminSettings.plans = [...INITIAL_DB.adminSettings.plans];
   }
+
+  db.adminSettings.plans = db.adminSettings.plans.map(plan => ({
+    ...plan,
+    enabled: plan.enabled !== false
+  }));
 
   return db;
 }
@@ -335,9 +343,28 @@ export async function updatePlan(planId, updates) {
     description: updates.description ?? plan.description,
     days: updates.days !== undefined ? Number(updates.days) : plan.days,
     price: updates.price !== undefined ? Number(updates.price) : plan.price,
-    currency: updates.currency ?? plan.currency
+    currency: updates.currency ?? plan.currency,
+    enabled: updates.enabled !== undefined ? Boolean(updates.enabled) : plan.enabled
   });
 
+  await writeDb(db);
+  return plan;
+}
+
+export async function deletePlan(planId) {
+  const db = await readDb();
+  const index = db.adminSettings.plans.findIndex(p => p.id === planId);
+  if (index === -1) throw new Error('Plan not found');
+  const deleted = db.adminSettings.plans.splice(index, 1)[0];
+  await writeDb(db);
+  return deleted;
+}
+
+export async function togglePlanEnabled(planId) {
+  const db = await readDb();
+  const plan = db.adminSettings.plans.find(p => p.id === planId);
+  if (!plan) throw new Error('Plan not found');
+  plan.enabled = !plan.enabled;
   await writeDb(db);
   return plan;
 }

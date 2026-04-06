@@ -8,6 +8,7 @@ let selectedPlan = null;
 let currentPayment = null;
 let paymentMarkedSent = false;
 let availablePlans = [];
+let carouselIndex = 0;
 
 function getStoredUsername() {
   return localStorage.getItem('vpnUsername') || '';
@@ -120,7 +121,7 @@ async function loadPlans() {
   }
 }
 
-// Отобразить тарифы
+// Отобразить тарифы (карусель)
 function renderPlans(plans) {
   const grid = document.getElementById('plansGrid');
   if (!Array.isArray(plans) || plans.length === 0) {
@@ -133,31 +134,67 @@ function renderPlans(plans) {
     return;
   }
 
-  grid.innerHTML = plans.map((plan, index) => {
-    const isFeatured = index === 1; // Второй тариф как featured
-    return `
-      <div class="plan-card ${isFeatured ? 'featured' : ''}">
-        ${isFeatured ? `<div style="position: absolute; top: -15px; left: 20px;">⭐</div>` : ''}
-        <div class="plan-badge">${plan.badge}</div>
-        <h3 class="plan-title">${plan.title}</h3>
-        <p class="plan-description">${plan.description}</p>
-        
-        <div class="plan-price">${plan.price} ₽</div>
-        <div class="plan-period">за ${plan.days} дней</div>
-        
-        <ul class="plan-features">
-          <li>Полный доступ на ${plan.days} дней</li>
-          <li>Высокая скорость подключения</li>
-          <li>Поддержка всех устройств</li>
-          <li>Техподдержка 24/7</li>
-        </ul>
-        
-        <button class="btn btn-primary plan-button" onclick="selectPlan('${plan.id}')">
-          💳 Заказать тариф
-        </button>
+  carouselIndex = Math.max(0, Math.min(carouselIndex, Math.max(0, plans.length - 3)));
+
+  const visiblePlans = plans.slice(carouselIndex, carouselIndex + 3);
+  const hasNav = plans.length > 3;
+
+  grid.innerHTML = `
+    <div class="carousel-container" ${hasNav ? 'style="display: flex; align-items: center; gap: 15px;"' : ''}>
+      ${hasNav ? `<button class="carousel-btn carousel-prev" onclick="prevPlanSlide()">◀</button>` : ''}
+      
+      <div class="carousel-content" style="flex: 1;">
+        <div class="plans-grid">
+          ${visiblePlans.map((plan, idx) => {
+            const globalIdx = carouselIndex + idx;
+            const isFeatured = globalIdx === 1 || (plans.length === 2 && idx === 0) || (plans.length === 1);
+            return `
+              <div class="plan-card ${isFeatured ? 'featured' : ''}">
+                ${isFeatured ? `<div style="position: absolute; top: -15px; left: 20px;">⭐</div>` : ''}
+                <div class="plan-badge">${plan.badge}</div>
+                <h3 class="plan-title">${plan.title}</h3>
+                <p class="plan-description">${plan.description}</p>
+                
+                <div class="plan-price">${plan.price} ₽</div>
+                <div class="plan-period">за ${plan.days} дней</div>
+                
+                <ul class="plan-features">
+                  <li>Полный доступ на ${plan.days} дней</li>
+                  <li>Высокая скорость подключения</li>
+                  <li>Поддержка всех устройств</li>
+                  <li>Техподдержка 24/7</li>
+                </ul>
+                
+                <button class="btn btn-primary plan-button" onclick="selectPlan('${plan.id}')">
+                  💳 Заказать тариф
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
       </div>
-    `;
-  }).join('');
+
+      ${hasNav ? `<button class="carousel-btn carousel-next" onclick="nextPlanSlide()">▶</button>` : ''}
+    </div>
+    
+    ${hasNav ? `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: var(--text-secondary);">
+      Тариф ${carouselIndex + 1}–${Math.min(carouselIndex + 3, plans.length)} из ${plans.length}
+    </div>` : ''}
+  `;
+}
+
+function nextPlanSlide() {
+  if (carouselIndex < availablePlans.length - 3) {
+    carouselIndex++;
+    renderPlans(availablePlans);
+  }
+}
+
+function prevPlanSlide() {
+  if (carouselIndex > 0) {
+    carouselIndex--;
+    renderPlans(availablePlans);
+  }
 }
 
 // Выбрать тариф

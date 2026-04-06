@@ -25,6 +25,8 @@ import {
   getAllUsersAdminView,
   createPlan,
   updatePlan,
+  deletePlan,
+  togglePlanEnabled,
   addAuditLog,
   getAuditLogs,
   hasReminderLog,
@@ -180,11 +182,12 @@ function adminAuth(req, res, next) {
   }
 }
 
-// PUBLIC: Получить тарифы
+// PUBLIC: Получить тарифы (только включённые)
 app.get('/api/plans', async (req, res) => {
   try {
-    const plans = await getPlans();
-    res.json(plans);
+    const allPlans = await getPlans();
+    const enabledPlans = allPlans.filter(p => p.enabled !== false);
+    res.json(enabledPlans);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -563,6 +566,38 @@ app.put('/api/admin/plans/:planId', adminAuth, async (req, res) => {
       details: { planId: plan.id }
     });
     res.json({ plan });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/plans/:planId/toggle', adminAuth, async (req, res) => {
+  try {
+    const plan = await togglePlanEnabled(req.params.planId);
+    await addAuditLog({
+      action: 'plan_toggled',
+      actor: req.adminId || 'admin',
+      targetUser: null,
+      paymentId: null,
+      details: { planId: plan.id, enabled: plan.enabled }
+    });
+    res.json({ plan });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/admin/plans/:planId', adminAuth, async (req, res) => {
+  try {
+    const deleted = await deletePlan(req.params.planId);
+    await addAuditLog({
+      action: 'plan_deleted',
+      actor: req.adminId || 'admin',
+      targetUser: null,
+      paymentId: null,
+      details: { planId: deleted.id, title: deleted.title }
+    });
+    res.json({ success: true, deleted });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
