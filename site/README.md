@@ -15,8 +15,15 @@ npm start
 ## Переменные окружения
 
 ```env
+# Обязательные для локального запуска
 PORT=3000
+
+# Опциональные
 NODE_ENV=development
+API_URL=http://localhost:8788
+TG_BOT_USERNAME=@your_bot_username
+BRAND_NAME=VPN Premium
+BRAND_EMOJI=🌐
 ```
 
 ## Страницы

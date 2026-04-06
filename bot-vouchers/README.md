@@ -13,11 +13,22 @@ npm start
 ## Переменные окружения
 
 ```env
-TELEGRAM_BOT_TOKEN=xxx              # Токен бота из @BotFather
-PAYMENTS_API_URL=http://localhost:8788  # URL API платежей
-BRAND_NAME=VPN Premium              # Название сервиса
-BRAND_EMOJI=🌐                      # Эмодзи бренда
+# Обязательные
+TELEGRAM_BOT_TOKEN=xxx                   # Токен бота из @BotFather
+PAYMENTS_API_URL=http://localhost:8788   # URL API платежей
+
+# Опциональные
+INTERNAL_API_TOKEN=
+BOT_CHAT_ID=123456789
+BRAND_NAME=VPN Premium
+BRAND_EMOJI=🌐
+WEBHOOK_URL=
+WEBHOOK_PATH=/bot-webhook
+WEBHOOK_PORT=8080
+BOT_HEARTBEAT_INTERVAL_MS=60000
 ```
+
+Примечание: при пустом `WEBHOOK_URL` бот работает в polling-режиме.
 
 ## Получение токена бота
 

@@ -10,17 +10,33 @@ cp .env.example .env
 npm start
 ```
 
+Требуется Node.js 20+.
+
 ## Переменные окружения
 
 ```env
-PORT=8788                              # Порт сервера
-TELEGRAM_BOT_TOKEN=xxx                # Токен Telegram бота
-ADMIN_TELEGRAM_ID=123456789           # ID администратора в Telegram
-JWT_SECRET=your_secret                # Секрет для JWT токенов
-ADMIN_PASSWORD=admin123               # Пароль администратора
-PUBLIC_BASE_URL=http://localhost:8788 # Публичный URL API
-DB_PATH=../data/db.json               # Путь к БД
+# Обязательные
+TELEGRAM_BOT_TOKEN=123456:token                # Токен Telegram бота
+ADMIN_TELEGRAM_ID=123456789                    # Telegram ID администратора
+JWT_SECRET=replace_with_long_random_string     # Секрет JWT
+ADMIN_PASSWORD=replace_with_admin_password     # Пароль админки
+PUBLIC_BASE_URL=http://localhost:8788          # Публичный URL API
+XUI_PANEL_URL=https://1.2.3.4:2053/panel       # URL панели 3x-ui
+XUI_PUBLIC_URL=https://vpn.example.com         # Публичный URL подписки
+XUI_USERNAME=replace_with_xui_username         # Логин 3x-ui
+XUI_PASSWORD=replace_with_xui_password         # Пароль 3x-ui
+
+# Опциональные
+PORT=8788
+DB_PATH=../data/db.json
+INTERNAL_API_TOKEN=
+TRIAL_COOLDOWN_MS=2592000000
+BOT_HEARTBEAT_STALE_MS=120000
+SITE_HEALTH_URL=http://site:3000/health
+XUI_INBOUND_ID=1
 ```
+
+Примечание: если запускаете в Docker через корневой `docker-compose.yml`, `PUBLIC_BASE_URL` формируется автоматически из `API_DOMAIN`.
 
 ## API Endpoints
 

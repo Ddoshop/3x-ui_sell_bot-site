@@ -94,6 +94,7 @@ XUI_PASSWORD=пароль_от_xui
 XUI_INBOUND_ID=1
 JWT_SECRET=длинная_случайная_строка
 ADMIN_PASSWORD=пароль_администратора
+INTERNAL_API_TOKEN=длинный_случайный_токен_для_внутренних_эндпоинтов
 ```
 
 Сгенерировать безопасные значения:
@@ -108,9 +109,11 @@ openssl rand -base64 24
 - `DOMAIN` — ваш основной домен
 - `API_DOMAIN` — поддомен API, обычно `api.ваш-домен`
 - `API_URL` — оставить `http://api-payments:8788` (внутренний адрес Docker)
+- `PUBLIC_BASE_URL` — отдельно в `.env` не нужен, Docker Compose соберет его как `https://${API_DOMAIN}`
 - `XUI_PANEL_URL` — адрес вашей панели 3x-ui (`https://IP:ПОРТ/panel`)
 - `XUI_PUBLIC_URL` — публичный домен VPN, который клиенты получат в ссылке подписки
 - `BOT_CHAT_ID` — числовой Telegram ID администратора, который будет получать уведомления
+- `INTERNAL_API_TOKEN` — рекомендуется задать всегда, чтобы защитить внутренние служебные API-вызовы
 - `WEBHOOK_URL` — опционально. Если пусто, бот работает в polling-режиме. Если задано (например `https://your-domain.com`), включается webhook.
 - `WEBHOOK_PATH` — путь webhook (по умолчанию `/bot-webhook`)
 - `WEBHOOK_PORT` — внутренний порт webhook-сервера бота (по умолчанию `8080`)
