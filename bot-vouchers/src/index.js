@@ -8,6 +8,7 @@ let currentDeliveryMode = 'stopped';
 let webhookServer = null;
 let webhookHealthTimer = null;
 let webhookRecoveryTimer = null;
+let botHeartbeatTimer = null;
 
 // Состояния пользователей
 const userStates = new Map();
@@ -284,6 +285,30 @@ function clearDeliveryTimers() {
     clearInterval(webhookRecoveryTimer);
     webhookRecoveryTimer = null;
   }
+
+  if (botHeartbeatTimer) {
+    clearInterval(botHeartbeatTimer);
+    botHeartbeatTimer = null;
+  }
+}
+
+async function sendBotHeartbeat() {
+  try {
+    await api.sendHeartbeat(currentDeliveryMode);
+  } catch (error) {
+    console.error('Bot heartbeat failed:', error.message);
+  }
+}
+
+function startHeartbeatLoop() {
+  if (botHeartbeatTimer) {
+    clearInterval(botHeartbeatTimer);
+  }
+
+  sendBotHeartbeat().catch(() => {});
+  botHeartbeatTimer = setInterval(() => {
+    sendBotHeartbeat().catch(() => {});
+  }, config.heartbeatIntervalMs);
 }
 
 async function getWebhookInfo() {
@@ -316,6 +341,7 @@ async function startPollingMode(reason = 'fallback') {
   await bot.launch();
   currentDeliveryMode = 'polling';
   console.log(`📡 Polling mode enabled (${reason})`);
+  startHeartbeatLoop();
 
   if (config.webhookUrl) {
     webhookRecoveryTimer = setInterval(async () => {
@@ -387,6 +413,7 @@ async function startWebhookMode(reason = 'startup') {
 
   currentDeliveryMode = 'webhook';
   console.log(`🌐 Webhook mode enabled (${reason}): ${webhookUrl}`);
+  startHeartbeatLoop();
   webhookHealthTimer = setInterval(() => {
     monitorWebhookHealth().catch((error) => {
       console.error('Webhook monitor failure:', error.message);

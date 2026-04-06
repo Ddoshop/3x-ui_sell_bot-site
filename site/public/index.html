@@ -171,7 +171,7 @@
         </div>
 
         <div class="modal-actions">
-          <button class="btn btn-primary" onclick="createPaymentRequest()">✅ Создать заявку</button>
+          <button class="btn btn-primary" id="purchaseCreateButton" onclick="createPaymentRequest()">✅ Создать заявку</button>
           <button class="btn btn-secondary" onclick="closePurchaseModal()">Отмена</button>
         </div>
 
@@ -265,6 +265,18 @@
         </div>
 
         <div id="modalPaymentMessage" class="message"></div>
+      </div>
+
+      <div id="purchaseStepStatus" style="display: none;">
+        <div class="purchase-status" id="purchaseStatusPanel">
+          <div class="purchase-status-icon" id="purchaseStatusIcon">ℹ️</div>
+          <h4 class="purchase-status-title" id="purchaseStatusTitle">Статус</h4>
+          <p class="purchase-status-text" id="purchaseStatusText"></p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="closePurchaseModal()">Закрыть</button>
+          <button class="btn btn-secondary" onclick="switchPurchaseStep('payment')">Вернуться</button>
+        </div>
       </div>
     </div>
   </div>

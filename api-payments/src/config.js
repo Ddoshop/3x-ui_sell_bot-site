@@ -23,6 +23,10 @@ export const config = {
   adminPassword: requireEnv('ADMIN_PASSWORD'),
   publicBaseUrl: requireEnv('PUBLIC_BASE_URL').replace(/\/$/, ''),
   dbPath: process.env.DB_PATH || '../data/db.json',
+  internalApiToken: process.env.INTERNAL_API_TOKEN || '',
+  trialCooldownMs: parseNumber(process.env.TRIAL_COOLDOWN_MS, 1000 * 60 * 60 * 24 * 30),
+  botHeartbeatStaleMs: parseNumber(process.env.BOT_HEARTBEAT_STALE_MS, 1000 * 60 * 2),
+  siteHealthUrl: process.env.SITE_HEALTH_URL || 'http://site:3000/health',
   xui: {
     panelUrl: requireEnv('XUI_PANEL_URL').replace(/\/$/, ''),
     publicUrl: requireEnv('XUI_PUBLIC_URL').replace(/\/$/, ''),

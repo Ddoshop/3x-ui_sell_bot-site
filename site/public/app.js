@@ -7,6 +7,7 @@ const BRAND_EMOJI = APP_CONFIG.brandEmoji || '🌐';
 let selectedPlan = null;
 let currentPayment = null;
 let paymentMarkedSent = false;
+let availablePlans = [];
 
 function getStoredUsername() {
   return localStorage.getItem('vpnUsername') || '';
@@ -19,8 +20,67 @@ function setStoredUsername(username) {
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
   applyBranding();
+  setPlansLoading();
   loadPlans();
 });
+
+function getBrowserFingerprint() {
+  const storageKey = 'vpnBrowserFingerprint';
+  const existing = localStorage.getItem(storageKey);
+  if (existing) return existing;
+
+  const seed = [
+    navigator.userAgent || 'ua',
+    navigator.language || 'lang',
+    navigator.platform || 'platform',
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'tz',
+    String(screen.width || 0),
+    String(screen.height || 0),
+    (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : String(Date.now())
+  ].join('|');
+
+  localStorage.setItem(storageKey, seed);
+  return seed;
+}
+
+function setButtonLoading(button, isLoading, loadingText) {
+  if (!button) return;
+
+  if (!button.dataset.originalText) {
+    button.dataset.originalText = button.textContent;
+  }
+
+  button.disabled = isLoading;
+  button.classList.toggle('is-loading', isLoading);
+  button.textContent = isLoading ? loadingText : button.dataset.originalText;
+}
+
+function setPlansLoading() {
+  const grid = document.getElementById('plansGrid');
+  if (!grid) return;
+
+  grid.innerHTML = `
+    <div class="empty-state-card">
+      <h3>⏳ Загружаем тарифы</h3>
+      <p>Проверяем актуальные цены и срок действия...</p>
+    </div>
+  `;
+}
+
+function setPlansError(text) {
+  const grid = document.getElementById('plansGrid');
+  if (!grid) return;
+
+  grid.innerHTML = `
+    <div class="empty-state-card error">
+      <h3>⚠️ Не удалось загрузить тарифы</h3>
+      <p>${text}</p>
+      <button class="btn btn-secondary" onclick="loadPlans()">Повторить</button>
+    </div>
+  `;
+}
 
 function applyBranding() {
   const title = document.querySelector('title');
@@ -51,18 +111,28 @@ async function loadPlans() {
     if (!response.ok) throw new Error('Failed to load plans');
     
     const plans = await response.json();
+    availablePlans = Array.isArray(plans) ? plans : [];
     console.log('Plans loaded:', plans);
-    renderPlans(plans);
+    renderPlans(availablePlans);
   } catch (error) {
     console.error('Error loading plans:', error);
-    document.getElementById('plansGrid').innerHTML = 
-      '<div class="message error">Ошибка загрузки тарифов. Проверьте соединение с сервером.</div>';
+    setPlansError('Проверьте соединение с сервером и попробуйте снова.');
   }
 }
 
 // Отобразить тарифы
 function renderPlans(plans) {
   const grid = document.getElementById('plansGrid');
+  if (!Array.isArray(plans) || plans.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state-card">
+        <h3>📭 Тарифы временно недоступны</h3>
+        <p>Администратор скоро добавит новые предложения.</p>
+      </div>
+    `;
+    return;
+  }
+
   grid.innerHTML = plans.map((plan, index) => {
     const isFeatured = index === 1; // Второй тариф как featured
     return `
@@ -93,9 +163,10 @@ function renderPlans(plans) {
 // Выбрать тариф
 async function selectPlan(planId) {
   try {
-    const response = await fetch(`${API_URL}/plans`);
-    const plans = await response.json();
-    selectedPlan = plans.find(p => p.id === planId);
+    if (!availablePlans.length) {
+      await loadPlans();
+    }
+    selectedPlan = availablePlans.find(p => p.id === planId);
     
     if (!selectedPlan) return;
 
@@ -171,13 +242,15 @@ function switchPurchaseStep(step) {
   const start = document.getElementById('purchaseStepStart');
   const gift = document.getElementById('purchaseStepGift');
   const payment = document.getElementById('purchaseStepPayment');
+  const status = document.getElementById('purchaseStepStatus');
   const planSummary = document.getElementById('purchasePlanSummary');
 
-  if (!start || !gift || !payment || !planSummary) return;
+  if (!start || !gift || !payment || !status || !planSummary) return;
 
   start.style.display = 'none';
   gift.style.display = 'none';
   payment.style.display = 'none';
+  status.style.display = 'none';
   planSummary.style.display = 'block';
 
   if (step === 'gift') {
@@ -188,6 +261,12 @@ function switchPurchaseStep(step) {
   if (step === 'payment') {
     planSummary.style.display = 'none';
     payment.style.display = 'block';
+    return;
+  }
+
+  if (step === 'status') {
+    planSummary.style.display = 'none';
+    status.style.display = 'block';
     return;
   }
 
@@ -258,6 +337,9 @@ async function createPaymentRequest() {
   }
 
   try {
+    const createBtn = document.getElementById('purchaseCreateButton');
+    setButtonLoading(createBtn, true, 'Создаём заявку...');
+
     const paymentResponse = await fetch(`${API_URL}/payments/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -266,7 +348,8 @@ async function createPaymentRequest() {
         username: normalizedUsername,
         planId: selectedPlan.id,
         firstName: normalizedUsername,
-        lastName: ''
+        lastName: '',
+        browserFingerprint: getBrowserFingerprint()
       })
     });
 
@@ -319,11 +402,32 @@ async function createPaymentRequest() {
     } else {
       clearMessage('modalGiftMessage');
       switchPurchaseStep('payment');
+      if (currentPayment.trial?.blocked) {
+        showMessage('modalPaymentMessage', 'ℹ️ Пробный доступ временно недоступен: ' + currentPayment.trial.reason, 'info');
+      }
     }
   } catch (error) {
     console.error('Error creating payment:', error);
     showMessage('purchaseModalMessage', `❌ Ошибка создания заявки: ${error.message}`, 'error');
+  } finally {
+    const createBtn = document.getElementById('purchaseCreateButton');
+    setButtonLoading(createBtn, false, 'Создаём заявку...');
   }
+}
+
+function showPurchaseStatus(type, title, text) {
+  const icon = document.getElementById('purchaseStatusIcon');
+  const titleEl = document.getElementById('purchaseStatusTitle');
+  const textEl = document.getElementById('purchaseStatusText');
+  const panel = document.getElementById('purchaseStatusPanel');
+
+  if (!icon || !titleEl || !textEl || !panel) return;
+
+  panel.className = `purchase-status ${type}`;
+  icon.textContent = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  titleEl.textContent = title;
+  textEl.textContent = text;
+  switchPurchaseStep('status');
 }
 
 async function copyGiftAccessLink() {
@@ -376,17 +480,16 @@ function renderModalPaymentDetails(plan) {
 // Подтвердить платёж
 async function confirmPayment() {
   if (!currentPayment) {
-    showMessage('modalPaymentMessage', '❌ Сначала создайте заявку на оплату', 'error');
+    showPurchaseStatus('error', 'Заявка не найдена', 'Сначала создайте заявку на оплату, затем подтвердите перевод.');
     return;
   }
 
   paymentMarkedSent = true;
-  showMessage('modalPaymentMessage', 'Платёж отправлен администратору на проверку. После проверки мы продлим подписку и отправим уведомление в Telegram.', 'info');
-  
-  setTimeout(() => {
-    closePurchaseModal();
-    clearMessage('modalPaymentMessage');
-  }, 3000);
+  showPurchaseStatus(
+    'success',
+    'Заявка отправлена на проверку',
+    'После подтверждения администратором подписка будет продлена, а уведомление придёт в Telegram.'
+  );
 }
 
 // Вернуться к тарифам

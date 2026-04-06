@@ -38,5 +38,27 @@ export const api = {
     const res = await fetch(`${config.paymentsApiUrl}/api/users/${username}/subscriptions`);
     if (!res.ok) throw new Error('Failed to fetch subscriptions');
     return res.json();
+  },
+
+  async sendHeartbeat(deliveryMode) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (config.internalApiToken) {
+      headers['x-internal-token'] = config.internalApiToken;
+    }
+
+    const res = await fetch(`${config.paymentsApiUrl}/api/internal/bot/heartbeat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        deliveryMode,
+        botVersion: '1.0.0'
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to send heartbeat: HTTP ${res.status}`);
+    }
+
+    return res.json();
   }
 };

@@ -7,6 +7,7 @@ let allVouchers = [];
 let allPlans = [];
 let allUsers = [];
 let allAuditLogs = [];
+let healthSnapshot = null;
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
@@ -136,6 +137,9 @@ async function initializeAdmin() {
     // Загрузить audit logs
     await loadAuditLogs();
 
+    // Загрузить health dashboard
+    await loadHealthDashboard();
+
     // Обновлять данные каждые 5 секунд
     setInterval(async () => {
       await loadPayments();
@@ -144,11 +148,62 @@ async function initializeAdmin() {
       updateStats();
     }, 5000);
 
+    setInterval(async () => {
+      await loadHealthDashboard();
+    }, 30000);
+
     updateStats();
   } catch (error) {
     console.error('Error initializing:', error);
     alert('Ошибка инициализации: ' + error.message);
   }
+}
+
+async function loadHealthDashboard() {
+  try {
+    const response = await fetch(`${API_URL}/admin/health`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to load health dashboard');
+    healthSnapshot = await response.json();
+    renderHealthDashboard();
+  } catch (error) {
+    console.error('Error loading health dashboard:', error);
+  }
+}
+
+function renderHealthDashboard() {
+  const grid = document.getElementById('healthGrid');
+  const lastExt = document.getElementById('healthLastExtension');
+  if (!grid || !lastExt) return;
+
+  const statuses = healthSnapshot?.statuses || {};
+  const keys = ['api', 'site', 'bot', 'xui'];
+
+  grid.innerHTML = keys.map((key) => {
+    const item = statuses[key] || { ok: false, message: 'Нет данных' };
+    const cls = item.ok ? 'ok' : (item.message === 'Нет данных' ? 'unknown' : 'fail');
+    const marker = item.ok ? '🟢' : '🔴';
+    return `
+      <div class="health-item ${cls}">
+        <div class="health-title">${key.toUpperCase()}</div>
+        <div class="health-value">${marker} ${item.message || 'Нет данных'}</div>
+      </div>
+    `;
+  }).join('');
+
+  const last = healthSnapshot?.lastSuccessfulExtension;
+  if (!last) {
+    lastExt.textContent = 'Последнее продление: пока нет данных';
+    return;
+  }
+
+  const at = last.at ? new Date(last.at).toLocaleString('ru-RU') : 'неизвестно';
+  const user = last.userId ? `@${last.userId}` : 'unknown user';
+  const plan = last.planTitle || last.planId || 'unknown plan';
+  const expires = last.expiresAt ? new Date(last.expiresAt).toLocaleString('ru-RU') : 'неизвестно';
+  lastExt.textContent = `Последнее продление: ${at} | ${last.operation} | ${user} | ${plan} | до ${expires}`;
 }
 
 // Загрузить платежи

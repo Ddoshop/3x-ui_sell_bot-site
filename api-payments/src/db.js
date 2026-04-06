@@ -13,6 +13,14 @@ const INITIAL_DB = {
   issuedAccess: [],
   auditLogs: [],
   reminderLogs: [],
+  trialGrants: [],
+  systemState: {
+    botHeartbeatAt: null,
+    botDeliveryMode: null,
+    botVersion: null,
+    lastSuccessfulExtensionAt: null,
+    lastSuccessfulExtension: null
+  },
   adminSettings: {
     plans: [
       {
@@ -64,6 +72,16 @@ function normalizeDb(data) {
   db.issuedAccess = Array.isArray(db.issuedAccess) ? db.issuedAccess : [];
   db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
   db.reminderLogs = Array.isArray(db.reminderLogs) ? db.reminderLogs : [];
+  db.trialGrants = Array.isArray(db.trialGrants) ? db.trialGrants : [];
+
+  if (!db.systemState || typeof db.systemState !== 'object') {
+    db.systemState = { ...INITIAL_DB.systemState };
+  }
+  db.systemState.botHeartbeatAt = db.systemState.botHeartbeatAt || null;
+  db.systemState.botDeliveryMode = db.systemState.botDeliveryMode || null;
+  db.systemState.botVersion = db.systemState.botVersion || null;
+  db.systemState.lastSuccessfulExtensionAt = db.systemState.lastSuccessfulExtensionAt || null;
+  db.systemState.lastSuccessfulExtension = db.systemState.lastSuccessfulExtension || null;
 
   if (!db.adminSettings || typeof db.adminSettings !== 'object') {
     db.adminSettings = { plans: [...INITIAL_DB.adminSettings.plans] };
@@ -401,4 +419,80 @@ export async function getAllUsersAdminView(query = '') {
       accessHistory: userAccess
     };
   });
+}
+
+function normalizeTrialGrantValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+export async function addTrialGrant(entry) {
+  const db = await readDb();
+  const item = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    username: normalizeTrialGrantValue(entry.username),
+    ip: normalizeTrialGrantValue(entry.ip),
+    fingerprint: normalizeTrialGrantValue(entry.fingerprint),
+    paymentId: entry.paymentId || null,
+    expiresAt: entry.expiresAt || null
+  };
+
+  db.trialGrants.unshift(item);
+  if (db.trialGrants.length > 5000) {
+    db.trialGrants = db.trialGrants.slice(0, 5000);
+  }
+
+  await writeDb(db);
+  return item;
+}
+
+export async function getLatestTrialGrantByUsername(username) {
+  const db = await readDb();
+  const normalized = normalizeTrialGrantValue(username);
+  if (!normalized) return null;
+  return db.trialGrants.find(item => item.username === normalized) || null;
+}
+
+export async function getLatestTrialGrantByIp(ip) {
+  const db = await readDb();
+  const normalized = normalizeTrialGrantValue(ip);
+  if (!normalized) return null;
+  return db.trialGrants.find(item => item.ip === normalized) || null;
+}
+
+export async function getLatestTrialGrantByFingerprint(fingerprint) {
+  const db = await readDb();
+  const normalized = normalizeTrialGrantValue(fingerprint);
+  if (!normalized) return null;
+  return db.trialGrants.find(item => item.fingerprint === normalized) || null;
+}
+
+export async function updateBotHeartbeat(data) {
+  const db = await readDb();
+  db.systemState.botHeartbeatAt = new Date().toISOString();
+  db.systemState.botDeliveryMode = data.deliveryMode || db.systemState.botDeliveryMode || null;
+  db.systemState.botVersion = data.botVersion || db.systemState.botVersion || null;
+  await writeDb(db);
+  return db.systemState;
+}
+
+export async function markLastSuccessfulExtension(data) {
+  const db = await readDb();
+  const now = new Date().toISOString();
+  db.systemState.lastSuccessfulExtensionAt = now;
+  db.systemState.lastSuccessfulExtension = {
+    at: now,
+    operation: data.operation || 'unknown',
+    userId: data.userId || null,
+    planId: data.planId || null,
+    planTitle: data.planTitle || null,
+    expiresAt: data.expiresAt || null
+  };
+  await writeDb(db);
+  return db.systemState.lastSuccessfulExtension;
+}
+
+export async function getSystemState() {
+  const db = await readDb();
+  return db.systemState;
 }

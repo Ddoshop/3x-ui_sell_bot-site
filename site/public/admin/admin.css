@@ -126,6 +126,50 @@
   color: var(--text-secondary);
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.health-item {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 14px;
+  background: var(--glass-light);
+}
+
+.health-item.ok {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.health-item.fail {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.health-item.unknown {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.health-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.health-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.health-last {
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 /* Вкладки */
 .tabs-group {
   display: flex;

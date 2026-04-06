@@ -28,7 +28,14 @@ import {
   addAuditLog,
   getAuditLogs,
   hasReminderLog,
-  addReminderLog
+  addReminderLog,
+  addTrialGrant,
+  getLatestTrialGrantByUsername,
+  getLatestTrialGrantByIp,
+  getLatestTrialGrantByFingerprint,
+  updateBotHeartbeat,
+  markLastSuccessfulExtension,
+  getSystemState
 } from './db.js';
 import { config } from './config.js';
 import { createXuiClient, extendXuiClient, removeXuiClient, getXuiInbounds } from './xui.js';
@@ -38,7 +45,41 @@ function normalizeUsername(input = '') {
 }
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
+
+function toMs(dateIso) {
+  return dateIso ? new Date(dateIso).getTime() : 0;
+}
+
+function getRequestIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  return String(req.ip || req.socket?.remoteAddress || '').trim();
+}
+
+function normalizeFingerprint(raw) {
+  return String(raw || '').trim().toLowerCase().slice(0, 256);
+}
+
+function hasFreshCooldown(entry, cooldownMs) {
+  if (!entry?.createdAt) return false;
+  return (Date.now() - toMs(entry.createdAt)) < cooldownMs;
+}
+
+function formatCooldownReason(entry, kind, cooldownMs) {
+  if (!entry?.createdAt) {
+    return `Trial is limited by ${kind}`;
+  }
+
+  const elapsed = Date.now() - toMs(entry.createdAt);
+  const remainingMs = Math.max(cooldownMs - elapsed, 0);
+  const remainingHours = Math.ceil(remainingMs / (1000 * 60 * 60));
+  return `Trial cooldown is active for ${kind}. Try again in ~${remainingHours}h`;
+}
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -152,8 +193,10 @@ app.get('/api/plans', async (req, res) => {
 // PUBLIC: Создать платёж
 app.post('/api/payments/create', async (req, res) => {
   try {
-    const { userId, planId, firstName, lastName, username, telegramId } = req.body;
+    const { userId, planId, firstName, lastName, username, telegramId, browserFingerprint } = req.body;
     const normalizedUsername = normalizeUsername(username || userId);
+    const requestIp = getRequestIp(req);
+    const fingerprint = normalizeFingerprint(browserFingerprint);
     if (!normalizedUsername || !planId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -187,7 +230,36 @@ app.post('/api/payments/create', async (req, res) => {
     const latestAccess = await getLatestIssuedAccessByUser(canonicalUserId);
 
     let trial = null;
-    if (!user?.trialIssuedAt) {
+    const [usernameGrant, ipGrant, fingerprintGrant] = await Promise.all([
+      getLatestTrialGrantByUsername(normalizedUsername),
+      getLatestTrialGrantByIp(requestIp),
+      getLatestTrialGrantByFingerprint(fingerprint)
+    ]);
+
+    const legacyUsernameGrant = user?.trialIssuedAt
+      ? { createdAt: user.trialIssuedAt }
+      : null;
+    const effectiveUsernameGrant = usernameGrant || legacyUsernameGrant;
+
+    const usernameBlocked = hasFreshCooldown(effectiveUsernameGrant, config.trialCooldownMs);
+    const ipBlocked = hasFreshCooldown(ipGrant, config.trialCooldownMs);
+    const fingerprintBlocked = hasFreshCooldown(fingerprintGrant, config.trialCooldownMs);
+
+    if (usernameBlocked || ipBlocked || fingerprintBlocked) {
+      const reason = usernameBlocked
+        ? formatCooldownReason(effectiveUsernameGrant, 'username', config.trialCooldownMs)
+        : ipBlocked
+        ? formatCooldownReason(ipGrant, 'IP', config.trialCooldownMs)
+        : formatCooldownReason(fingerprintGrant, 'browser fingerprint', config.trialCooldownMs);
+
+      trial = {
+        granted: false,
+        blocked: true,
+        reason
+      };
+    }
+
+    if (!trial?.blocked) {
       try {
         const trialAccess = await createXuiClient({ username: normalizedUsername, days: 1 });
         await saveIssuedAccess({
@@ -208,6 +280,14 @@ app.post('/api/payments/create', async (req, res) => {
         await upsertUser({
           telegramId: canonicalUserId,
           trialIssuedAt: new Date().toISOString()
+        });
+
+        await addTrialGrant({
+          username: normalizedUsername,
+          ip: requestIp,
+          fingerprint,
+          paymentId: payment.id,
+          expiresAt: trialAccess.expiresAt
         });
 
         trial = {
@@ -399,6 +479,14 @@ app.post('/api/admin/payments/:paymentId/confirm', adminAuth, async (req, res) =
       }
     });
 
+    await markLastSuccessfulExtension({
+      operation: 'payment_confirmed',
+      userId: normalizedUsername,
+      planId: plan.id,
+      planTitle: plan.title,
+      expiresAt: access.expiresAt
+    });
+
     res.json({
       success: true,
       planTitle: plan.title,
@@ -491,6 +579,70 @@ app.get('/api/admin/audit-logs', adminAuth, async (req, res) => {
   }
 });
 
+app.post('/api/internal/bot/heartbeat', async (req, res) => {
+  try {
+    const token = req.headers['x-internal-token'];
+    if (config.internalApiToken && token !== config.internalApiToken) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { deliveryMode, botVersion } = req.body || {};
+    const state = await updateBotHeartbeat({ deliveryMode, botVersion });
+    res.json({ ok: true, botHeartbeatAt: state.botHeartbeatAt });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/health', adminAuth, async (req, res) => {
+  const statuses = {
+    api: { ok: true, message: 'API is running' },
+    site: { ok: false, message: 'Unknown' },
+    bot: { ok: false, message: 'No heartbeat yet' },
+    xui: { ok: false, message: 'Unknown' }
+  };
+
+  try {
+    const siteResp = await fetch(config.siteHealthUrl, { method: 'GET' });
+    statuses.site = {
+      ok: siteResp.ok,
+      message: siteResp.ok ? 'Site health check passed' : `HTTP ${siteResp.status}`
+    };
+  } catch (error) {
+    statuses.site = { ok: false, message: `Site check failed: ${error.message}` };
+  }
+
+  try {
+    await getXuiInbounds();
+    statuses.xui = { ok: true, message: 'XUI reachable' };
+  } catch (error) {
+    statuses.xui = { ok: false, message: `XUI error: ${error.message}` };
+  }
+
+  try {
+    const systemState = await getSystemState();
+    const heartbeatAt = systemState.botHeartbeatAt;
+    const heartbeatMs = toMs(heartbeatAt);
+    const stale = !heartbeatMs || (Date.now() - heartbeatMs) > config.botHeartbeatStaleMs;
+    statuses.bot = {
+      ok: !stale,
+      message: stale ? 'Bot heartbeat is stale' : `Bot alive (${systemState.botDeliveryMode || 'unknown mode'})`,
+      heartbeatAt,
+      deliveryMode: systemState.botDeliveryMode || null,
+      botVersion: systemState.botVersion || null
+    };
+
+    return res.json({
+      ok: Object.values(statuses).every((s) => s.ok),
+      statuses,
+      lastSuccessfulExtensionAt: systemState.lastSuccessfulExtensionAt,
+      lastSuccessfulExtension: systemState.lastSuccessfulExtension
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message, statuses });
+  }
+});
+
 // PUBLIC: Активировать ваучер
 app.post('/api/vouchers/activate', async (req, res) => {
   try {
@@ -553,6 +705,14 @@ app.post('/api/vouchers/activate', async (req, res) => {
       isTrial: false,
       sourcePaymentId: voucher.linkedPaymentId || null,
       extendedFromAccessId: latestAccess?.id || null
+    });
+
+    await markLastSuccessfulExtension({
+      operation: 'voucher_activated',
+      userId: normalizedUsername,
+      planId: plan.id,
+      planTitle: plan.title,
+      expiresAt: access.expiresAt
     });
 
     res.json({
