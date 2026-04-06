@@ -82,6 +82,9 @@ nano .env
 TELEGRAM_BOT_TOKEN=1234567890:токен_бота
 TG_BOT_USERNAME=@username_бота
 BOT_CHAT_ID=123456789
+WEBHOOK_URL=
+WEBHOOK_PATH=/bot-webhook
+WEBHOOK_PORT=8080
 DOMAIN=your-domain.com
 API_DOMAIN=api.your-domain.com
 XUI_PANEL_URL=https://ВАШ_XUI_IP:ПОРТ/panel
@@ -108,6 +111,9 @@ openssl rand -base64 24
 - `XUI_PANEL_URL` — адрес вашей панели 3x-ui (`https://IP:ПОРТ/panel`)
 - `XUI_PUBLIC_URL` — публичный домен VPN, который клиенты получат в ссылке подписки
 - `BOT_CHAT_ID` — числовой Telegram ID администратора, который будет получать уведомления
+- `WEBHOOK_URL` — опционально. Если пусто, бот работает в polling-режиме. Если задано (например `https://your-domain.com`), включается webhook.
+- `WEBHOOK_PATH` — путь webhook (по умолчанию `/bot-webhook`)
+- `WEBHOOK_PORT` — внутренний порт webhook-сервера бота (по умолчанию `8080`)
 
 ## 4. Запуск Docker-контейнеров
 
@@ -198,6 +204,16 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
     }
+
+    # Telegram bot webhook (опционально, если включён WEBHOOK_URL)
+    location /bot-webhook {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
 }
 
 server {
@@ -256,6 +272,7 @@ docker compose logs -f bot-vouchers
 - API отвечает на `https://api.your-domain.com/health`
 - Telegram-бот отвечает на `/start`
 - тарифы загружаются на сайте
+- в админке доступны вкладки `Пользователи`, `Тарифы`, `Audit log`
 
 ## 8. Обновление проекта
 
@@ -272,6 +289,12 @@ docker compose up -d --build
 docker compose up -d --build api-payments
 docker compose up -d --build site
 docker compose up -d --build bot-vouchers
+```
+
+Если включаете webhook-режим, перезапустите минимум:
+
+```bash
+docker compose up -d --build bot-vouchers site
 ```
 
 ## 9. Данные и резервные копии
@@ -317,9 +340,47 @@ curl http://127.0.0.1:8788/health
 - проверьте `BOT_CHAT_ID`
 - убедитесь, что администратор хотя бы раз открыл бота и нажал `/start`
 
+Если webhook не работает:
+
+- проверьте `WEBHOOK_URL`, `WEBHOOK_PATH`, `WEBHOOK_PORT` в `.env`
+- проверьте проксирование пути `/bot-webhook` в nginx на `127.0.0.1:8080`
+- посмотрите логи: `docker compose logs --tail 200 bot-vouchers`
+
+Если напоминания о подписке не приходят:
+
+- убедитесь, что у пользователя есть `telegramChatId` (он появляется после взаимодействия с ботом)
+- проверьте логи API: `docker compose logs --tail 200 api-payments`
+- напоминания отправляются фоново каждые 10 минут
+
+## 11. Новые возможности админки
+
+### Пользователи
+
+- Поиск по Telegram username
+- Просмотр текущей активной подписки
+- Информация о trial-доступе
+- История платежей и ваучеров по пользователю
+
+### Тарифы
+
+- Редактирование `title`, `badge`, `description`, `days`, `price` без правки кода
+- Создание новых тарифов из админки
+
+### Audit log
+
+- Логируются ключевые действия: подтверждение платежей, создание ваучеров, отмена заявок
+- Видно кто сделал действие, когда и по какому пользователю
+
+### Напоминания о подписке
+
+- Бэкенд автоматически отправляет уведомления в Telegram:
+    - за 3 дня до окончания
+    - в день окончания
+    - после истечения
+- Повторная отправка одного и того же типа напоминания блокируется журналом отправок
+
 ## Безопасность
 
 - Не коммитьте реальный `.env` в репозиторий
 - `.env.example` — только шаблон, не содержит секретов
-- Самоподписной сертификат подходит для тестирования; для продакшн-трафика замените на доверенный
 - Держите `JWT_SECRET`, `ADMIN_PASSWORD`, токен бота и учётные данные XUI в тайне
