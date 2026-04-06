@@ -15,5 +15,8 @@ export const config = {
   paymentsApiUrl: requireEnv('PAYMENTS_API_URL').replace(/\/$/, ''),
   brandName: process.env.BRAND_NAME || 'VPN Premium',
   brandEmoji: process.env.BRAND_EMOJI || '🌐',
-  supportTelegramId: process.env.BOT_CHAT_ID || ''
+  supportTelegramId: process.env.BOT_CHAT_ID || '',
+  webhookUrl: process.env.WEBHOOK_URL || '',
+  webhookPath: process.env.WEBHOOK_PATH || '/bot-webhook',
+  webhookPort: Number(process.env.WEBHOOK_PORT || 8080)
 };

@@ -36,8 +36,17 @@
         <button class="menu-item" onclick="switchTab('payments')">
           <span>💳</span> Платежи
         </button>
+        <button class="menu-item" onclick="switchTab('users')">
+          <span>👥</span> Пользователи
+        </button>
+        <button class="menu-item" onclick="switchTab('plans')">
+          <span>🧩</span> Тарифы
+        </button>
         <button class="menu-item" onclick="switchTab('vouchers')">
           <span>🎟️</span> Ваучеры
+        </button>
+        <button class="menu-item" onclick="switchTab('audit')">
+          <span>🧾</span> Audit log
         </button>
         <button class="menu-item" onclick="switchTab('create-vouchers')">
           <span>➕</span> Создать ваучер
@@ -90,6 +99,37 @@
             <div class="stat-value" id="statVouchers">0</div>
             <div class="stat-subtitle">кодов</div>
           </div>
+        </div>
+      </section>
+
+      <section id="users-tab" class="tab">
+        <h1 class="page-title">👥 Пользователи</h1>
+        <div class="search-box glass-effect" style="margin-bottom: 20px; max-width: 640px;">
+          <input
+            type="text"
+            id="usersSearch"
+            class="input-field"
+            placeholder="🔍 Поиск по Telegram username..."
+            onkeyup="loadUsers()"
+          >
+        </div>
+        <div id="users-list" class="payments-list"></div>
+      </section>
+
+      <section id="plans-tab" class="tab">
+        <h1 class="page-title">🧩 Управление тарифами</h1>
+        <div id="plans-admin-list" class="payments-list"></div>
+
+        <div class="create-vouchers-panel glass-effect" style="margin-top: 24px; max-width: 680px;">
+          <h3 style="margin-bottom: 16px;">➕ Добавить новый тариф</h3>
+          <div class="form-group"><input type="text" id="newPlanId" class="input-field" placeholder="ID (например: vpn-180)"></div>
+          <div class="form-group"><input type="text" id="newPlanTitle" class="input-field" placeholder="Название"></div>
+          <div class="form-group"><input type="text" id="newPlanBadge" class="input-field" placeholder="Бейдж"></div>
+          <div class="form-group"><input type="text" id="newPlanDescription" class="input-field" placeholder="Описание"></div>
+          <div class="form-group"><input type="number" id="newPlanDays" class="input-field" placeholder="Дней"></div>
+          <div class="form-group"><input type="number" id="newPlanPrice" class="input-field" placeholder="Цена"></div>
+          <button class="btn btn-primary" onclick="createPlanAdmin()">Создать тариф</button>
+          <div id="createPlanMessage" class="message"></div>
         </div>
       </section>
 
@@ -197,6 +237,11 @@
           <div id="createUserVoucherMessage" class="message"></div>
           <div id="createdUserVoucher" class="created-vouchers"></div>
         </div>
+      </section>
+
+      <section id="audit-tab" class="tab">
+        <h1 class="page-title">🧾 Audit log</h1>
+        <div id="audit-list" class="payments-list"></div>
       </section>
     </main>
   </div>

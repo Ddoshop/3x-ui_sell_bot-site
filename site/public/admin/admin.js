@@ -5,6 +5,8 @@ let adminToken = null;
 let allPayments = { pending: [], confirmed: [] };
 let allVouchers = [];
 let allPlans = [];
+let allUsers = [];
+let allAuditLogs = [];
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
@@ -120,9 +122,7 @@ async function handleLogin(event) {
 async function initializeAdmin() {
   try {
     // Загрузить тарифы
-    const plansRes = await fetch(`${API_URL}/plans`);
-    allPlans = await plansRes.json();
-    populatePlanSelect();
+    await loadAdminPlans();
 
     // Загрузить платежи
     await loadPayments();
@@ -130,9 +130,17 @@ async function initializeAdmin() {
     // Загрузить ваучеры
     await loadVouchers();
 
+    // Загрузить пользователей
+    await loadUsers();
+
+    // Загрузить audit logs
+    await loadAuditLogs();
+
     // Обновлять данные каждые 5 секунд
     setInterval(async () => {
       await loadPayments();
+      await loadUsers();
+      await loadAuditLogs();
       updateStats();
     }, 5000);
 
@@ -169,6 +177,188 @@ async function loadVouchers() {
   } catch (error) {
     console.error('Error loading vouchers:', error);
   }
+}
+
+async function loadUsers() {
+  try {
+    const query = document.getElementById('usersSearch')?.value?.trim() || '';
+    const response = await fetch(`${API_URL}/admin/users?query=${encodeURIComponent(query)}`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (!response.ok) throw new Error('Failed to load users');
+
+    const data = await response.json();
+    allUsers = data.users || [];
+    renderUsers();
+  } catch (error) {
+    console.error('Error loading users:', error);
+  }
+}
+
+function renderUsers() {
+  const root = document.getElementById('users-list');
+  if (!root) return;
+
+  if (!allUsers.length) {
+    root.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 30px;">Пользователи не найдены</p>';
+    return;
+  }
+
+  root.innerHTML = allUsers.map(user => {
+    const active = user.activeSubscription;
+    const trial = user.trialIssuedAt ? new Date(user.trialIssuedAt).toLocaleString('ru-RU') : 'нет';
+    const payments = (user.paymentsHistory || []).slice(0, 5).map(p =>
+      `<li>${new Date(p.createdAt).toLocaleString('ru-RU')} — ${p.planTitle} (${p.amount}₽), статус: ${p.status}</li>`
+    ).join('');
+    const vouchers = (user.vouchersHistory || []).slice(0, 5).map(v =>
+      `<li>${v.code} — ${v.status}${v.usedAt ? `, использован: ${new Date(v.usedAt).toLocaleString('ru-RU')}` : ''}</li>`
+    ).join('');
+
+    return `
+      <div class="payment-item" style="display:block;">
+        <div class="payment-user">@${user.username}</div>
+        <div class="payment-details-row" style="flex-wrap: wrap; margin-bottom: 12px;">
+          <div class="payment-details-item">Trial выдан: ${trial}</div>
+          <div class="payment-details-item">Chat ID: ${user.telegramChatId || 'нет'}</div>
+          <div class="payment-details-item">Активная подписка: ${active ? `${active.planTitle} до ${new Date(active.expiresAt).toLocaleString('ru-RU')}` : 'нет'}</div>
+        </div>
+        <div style="margin-top: 8px;">
+          <strong>Платежи:</strong>
+          <ul style="margin: 8px 0 0 18px; color: var(--text-secondary);">${payments || '<li>нет</li>'}</ul>
+        </div>
+        <div style="margin-top: 8px;">
+          <strong>Ваучеры:</strong>
+          <ul style="margin: 8px 0 0 18px; color: var(--text-secondary);">${vouchers || '<li>нет</li>'}</ul>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadAdminPlans() {
+  try {
+    const response = await fetch(`${API_URL}/admin/plans`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (!response.ok) throw new Error('Failed to load admin plans');
+
+    const data = await response.json();
+    allPlans = data.plans || [];
+    populatePlanSelect();
+    renderAdminPlans();
+  } catch (error) {
+    console.error('Error loading plans admin:', error);
+  }
+}
+
+function renderAdminPlans() {
+  const root = document.getElementById('plans-admin-list');
+  if (!root) return;
+
+  root.innerHTML = allPlans.map(plan => `
+    <div class="payment-item" style="display:block;">
+      <div class="payment-user">${plan.title} <span style="color: var(--text-secondary);">(${plan.id})</span></div>
+      <div class="form-group"><input class="input-field" id="plan_title_${plan.id}" value="${plan.title}"></div>
+      <div class="form-group"><input class="input-field" id="plan_badge_${plan.id}" value="${plan.badge || ''}"></div>
+      <div class="form-group"><input class="input-field" id="plan_description_${plan.id}" value="${plan.description || ''}"></div>
+      <div class="form-group"><input class="input-field" id="plan_days_${plan.id}" type="number" value="${plan.days}"></div>
+      <div class="form-group"><input class="input-field" id="plan_price_${plan.id}" type="number" value="${plan.price}"></div>
+      <button class="btn btn-primary" onclick="savePlan('${plan.id}')">💾 Сохранить</button>
+    </div>
+  `).join('');
+}
+
+async function savePlan(planId) {
+  try {
+    const payload = {
+      title: document.getElementById(`plan_title_${planId}`).value.trim(),
+      badge: document.getElementById(`plan_badge_${planId}`).value.trim(),
+      description: document.getElementById(`plan_description_${planId}`).value.trim(),
+      days: Number(document.getElementById(`plan_days_${planId}`).value),
+      price: Number(document.getElementById(`plan_price_${planId}`).value)
+    };
+
+    const response = await fetch(`${API_URL}/admin/plans/${planId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error('Failed to update plan');
+    await loadAdminPlans();
+    alert('✅ Тариф обновлён');
+  } catch (error) {
+    alert(`❌ Ошибка: ${error.message}`);
+  }
+}
+
+async function createPlanAdmin() {
+  try {
+    const payload = {
+      id: document.getElementById('newPlanId').value.trim(),
+      title: document.getElementById('newPlanTitle').value.trim(),
+      badge: document.getElementById('newPlanBadge').value.trim(),
+      description: document.getElementById('newPlanDescription').value.trim(),
+      days: Number(document.getElementById('newPlanDays').value),
+      price: Number(document.getElementById('newPlanPrice').value),
+      currency: 'RUB'
+    };
+
+    const response = await fetch(`${API_URL}/admin/plans`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error('Failed to create plan');
+    showMessage('createPlanMessage', '✅ Тариф создан', 'success');
+    await loadAdminPlans();
+  } catch (error) {
+    showMessage('createPlanMessage', `❌ Ошибка: ${error.message}`, 'error');
+  }
+}
+
+async function loadAuditLogs() {
+  try {
+    const response = await fetch(`${API_URL}/admin/audit-logs?limit=200`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (!response.ok) throw new Error('Failed to load audit logs');
+    const data = await response.json();
+    allAuditLogs = data.logs || [];
+    renderAuditLogs();
+  } catch (error) {
+    console.error('Error loading audit logs:', error);
+  }
+}
+
+function renderAuditLogs() {
+  const root = document.getElementById('audit-list');
+  if (!root) return;
+
+  if (!allAuditLogs.length) {
+    root.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 30px;">Логи пока пусты</p>';
+    return;
+  }
+
+  root.innerHTML = allAuditLogs.map(item => `
+    <div class="payment-item" style="display:block;">
+      <div class="payment-user">${item.action}</div>
+      <div class="payment-details-row" style="flex-wrap: wrap;">
+        <div class="payment-details-item">🕒 ${new Date(item.createdAt).toLocaleString('ru-RU')}</div>
+        <div class="payment-details-item">👤 actor: ${item.actor || 'system'}</div>
+        <div class="payment-details-item">🎯 user: ${item.targetUser || '-'}</div>
+        <div class="payment-details-item">💳 payment: ${item.paymentId || '-'}</div>
+      </div>
+      <pre style="margin-top:10px; white-space:pre-wrap; color: var(--text-secondary);">${JSON.stringify(item.details || {}, null, 2)}</pre>
+    </div>
+  `).join('');
 }
 
 // Отобразить платежи
@@ -393,6 +583,16 @@ function switchTab(tabName) {
   // Показать выбранную вкладку
   document.getElementById(`${tabName}-tab`).classList.add('active');
   document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+
+  if (tabName === 'users') {
+    loadUsers();
+  }
+  if (tabName === 'plans') {
+    loadAdminPlans();
+  }
+  if (tabName === 'audit') {
+    loadAuditLogs();
+  }
 }
 
 // Переключение подвкладок платежей

@@ -11,6 +11,8 @@ const INITIAL_DB = {
   payments: [],
   vouchers: [],
   issuedAccess: [],
+  auditLogs: [],
+  reminderLogs: [],
   adminSettings: {
     plans: [
       {
@@ -47,10 +49,30 @@ const INITIAL_DB = {
 async function readDb() {
   try {
     const data = await fs.readFile(DB_PATH, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return normalizeDb(parsed);
   } catch {
-    return { ...INITIAL_DB };
+    return normalizeDb({ ...INITIAL_DB });
   }
+}
+
+function normalizeDb(data) {
+  const db = data || {};
+  db.users = Array.isArray(db.users) ? db.users : [];
+  db.payments = Array.isArray(db.payments) ? db.payments : [];
+  db.vouchers = Array.isArray(db.vouchers) ? db.vouchers : [];
+  db.issuedAccess = Array.isArray(db.issuedAccess) ? db.issuedAccess : [];
+  db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
+  db.reminderLogs = Array.isArray(db.reminderLogs) ? db.reminderLogs : [];
+
+  if (!db.adminSettings || typeof db.adminSettings !== 'object') {
+    db.adminSettings = { plans: [...INITIAL_DB.adminSettings.plans] };
+  }
+  if (!Array.isArray(db.adminSettings.plans) || !db.adminSettings.plans.length) {
+    db.adminSettings.plans = [...INITIAL_DB.adminSettings.plans];
+  }
+
+  return db;
 }
 
 async function writeDb(data) {
@@ -260,4 +282,123 @@ export async function getPlans() {
 export async function getPlanById(planId) {
   const plans = await getPlans();
   return plans.find(p => p.id === planId) || null;
+}
+
+export async function createPlan(planData) {
+  const db = await readDb();
+  const exists = db.adminSettings.plans.find(p => p.id === planData.id);
+  if (exists) {
+    throw new Error('Plan with this id already exists');
+  }
+
+  const plan = {
+    id: planData.id,
+    title: planData.title,
+    badge: planData.badge || '',
+    description: planData.description || '',
+    days: Number(planData.days),
+    price: Number(planData.price),
+    currency: planData.currency || 'RUB'
+  };
+
+  db.adminSettings.plans.push(plan);
+  await writeDb(db);
+  return plan;
+}
+
+export async function updatePlan(planId, updates) {
+  const db = await readDb();
+  const plan = db.adminSettings.plans.find(p => p.id === planId);
+  if (!plan) throw new Error('Plan not found');
+
+  Object.assign(plan, {
+    title: updates.title ?? plan.title,
+    badge: updates.badge ?? plan.badge,
+    description: updates.description ?? plan.description,
+    days: updates.days !== undefined ? Number(updates.days) : plan.days,
+    price: updates.price !== undefined ? Number(updates.price) : plan.price,
+    currency: updates.currency ?? plan.currency
+  });
+
+  await writeDb(db);
+  return plan;
+}
+
+export async function addAuditLog(entry) {
+  const db = await readDb();
+  const item = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    ...entry
+  };
+  db.auditLogs.unshift(item);
+  await writeDb(db);
+  return item;
+}
+
+export async function getAuditLogs(limit = 200) {
+  const db = await readDb();
+  return db.auditLogs.slice(0, limit);
+}
+
+export async function hasReminderLog(accessId, reminderType) {
+  const db = await readDb();
+  return db.reminderLogs.some(r => r.accessId === accessId && r.reminderType === reminderType);
+}
+
+export async function addReminderLog(entry) {
+  const db = await readDb();
+  const item = {
+    id: crypto.randomUUID(),
+    sentAt: new Date().toISOString(),
+    ...entry
+  };
+  db.reminderLogs.push(item);
+  await writeDb(db);
+  return item;
+}
+
+export async function getAllUsersAdminView(query = '') {
+  const db = await readDb();
+  const q = String(query || '').trim().toLowerCase();
+
+  const users = db.users.filter((u) => {
+    if (!q) return true;
+    const username = String(u.username || u.telegramId || '').toLowerCase();
+    return username.includes(q);
+  });
+
+  return users.map((user) => {
+    const userId = user.telegramId;
+    const userPayments = db.payments
+      .filter(p => p.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const userAccess = db.issuedAccess
+      .filter(a => a.userId === userId)
+      .sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime());
+
+    const activeAccess = userAccess.find(a => new Date(a.expiresAt) > new Date()) || null;
+    const userVouchers = db.vouchers
+      .filter(v => v.usedBy === userId || (v.assignedUsername && v.assignedUsername === userId))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return {
+      telegramId: user.telegramId,
+      username: user.username || user.telegramId,
+      telegramChatId: user.telegramChatId || null,
+      trialIssuedAt: user.trialIssuedAt || null,
+      activeSubscription: activeAccess
+        ? {
+            planTitle: activeAccess.planTitle,
+            expiresAt: activeAccess.expiresAt,
+            subscriptionUrl: activeAccess.subscriptionUrl,
+            isTrial: Boolean(activeAccess.isTrial)
+          }
+        : null,
+      paymentsHistory: userPayments,
+      vouchersHistory: userVouchers,
+      accessHistory: userAccess
+    };
+  });
 }

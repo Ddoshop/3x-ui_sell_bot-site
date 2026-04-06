@@ -21,7 +21,14 @@ import {
   deletePayment,
   getTrialAccessBySourcePayment,
   deleteIssuedAccess,
-  clearUserTrialIssuedAt
+  clearUserTrialIssuedAt,
+  getAllUsersAdminView,
+  createPlan,
+  updatePlan,
+  addAuditLog,
+  getAuditLogs,
+  hasReminderLog,
+  addReminderLog
 } from './db.js';
 import { config } from './config.js';
 import { createXuiClient, extendXuiClient, removeXuiClient, getXuiInbounds } from './xui.js';
@@ -65,6 +72,53 @@ async function sendTelegramMessage(chatId, text) {
     }
   } catch (error) {
     console.error('Error sending Telegram message:', error);
+  }
+}
+
+function daysUntil(dateIso) {
+  const diffMs = new Date(dateIso).getTime() - Date.now();
+  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+}
+
+async function processExpiryReminders() {
+  const users = await getAllUsersAdminView();
+
+  for (const user of users) {
+    const chatId = user.telegramChatId;
+    if (!chatId) continue;
+
+    for (const access of user.accessHistory || []) {
+      const expiresAt = access.expiresAt;
+      if (!expiresAt) continue;
+
+      const left = daysUntil(expiresAt);
+
+      let reminderType = null;
+      if (left === 3) reminderType = '3days';
+      else if (left === 0 && new Date(expiresAt) > new Date()) reminderType = 'today';
+      else if (left < 0) reminderType = 'expired';
+
+      if (!reminderType) continue;
+
+      const alreadySent = await hasReminderLog(access.id, reminderType);
+      if (alreadySent) continue;
+
+      let text = '';
+      if (reminderType === '3days') {
+        text = `⏳ *Подписка скоро закончится*\n\nПлан: ${access.planTitle}\nОсталось: 3 дня\nДо: ${new Date(expiresAt).toLocaleString('ru-RU')}`;
+      } else if (reminderType === 'today') {
+        text = `⚠️ *Подписка заканчивается сегодня*\n\nПлан: ${access.planTitle}\nДо: ${new Date(expiresAt).toLocaleString('ru-RU')}\n\nПродлите подписку, чтобы не потерять доступ.`;
+      } else {
+        text = `❌ *Подписка истекла*\n\nПлан: ${access.planTitle}\nИстекла: ${new Date(expiresAt).toLocaleString('ru-RU')}\n\nОформите новый платёж, чтобы восстановить доступ.`;
+      }
+
+      await sendTelegramMessage(chatId, text);
+      await addReminderLog({
+        userId: user.telegramId,
+        accessId: access.id,
+        reminderType
+      });
+    }
   }
 }
 
@@ -233,6 +287,14 @@ app.post('/api/payments/:paymentId/cancel', async (req, res) => {
 
     await deletePayment(payment.id);
 
+    await addAuditLog({
+      action: 'payment_cancelled',
+      actor: 'user',
+      targetUser: normalizedUsername,
+      paymentId: payment.id,
+      details: { trialRevoked: Boolean(trialAccess) }
+    });
+
     res.json({ success: true, canceled: true, trialRevoked: Boolean(trialAccess) });
   } catch (error) {
     console.error(error);
@@ -326,6 +388,17 @@ app.post('/api/admin/payments/:paymentId/confirm', adminAuth, async (req, res) =
       (!userChatId ? `\n⚠️ Пользователь не получит TG-уведомление: нет chat id` : '')
     );
 
+    await addAuditLog({
+      action: 'payment_confirmed',
+      actor: req.adminId || 'admin',
+      targetUser: normalizedUsername,
+      paymentId: payment.id,
+      details: {
+        planId: plan.id,
+        expiresAt: access.expiresAt
+      }
+    });
+
     res.json({
       success: true,
       planTitle: plan.title,
@@ -344,6 +417,75 @@ app.get('/api/admin/payments', adminAuth, async (req, res) => {
     const pending = await getPendingPayments();
     const confirmed = await getConfirmedPayments();
     res.json({ pending, confirmed });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ADMIN: Пользователи и история
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const query = req.query.query || '';
+    const users = await getAllUsersAdminView(query);
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ADMIN: Тарифы
+app.get('/api/admin/plans', adminAuth, async (req, res) => {
+  try {
+    const plans = await getPlans();
+    res.json({ plans });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/plans', adminAuth, async (req, res) => {
+  try {
+    const { id, title, badge, description, days, price, currency } = req.body;
+    if (!id || !title) {
+      return res.status(400).json({ error: 'id and title are required' });
+    }
+
+    const plan = await createPlan({ id, title, badge, description, days, price, currency });
+    await addAuditLog({
+      action: 'plan_created',
+      actor: req.adminId || 'admin',
+      targetUser: null,
+      paymentId: null,
+      details: { planId: plan.id }
+    });
+    res.json({ plan });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/plans/:planId', adminAuth, async (req, res) => {
+  try {
+    const plan = await updatePlan(req.params.planId, req.body || {});
+    await addAuditLog({
+      action: 'plan_updated',
+      actor: req.adminId || 'admin',
+      targetUser: null,
+      paymentId: null,
+      details: { planId: plan.id }
+    });
+    res.json({ plan });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ADMIN: Audit log
+app.get('/api/admin/audit-logs', adminAuth, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 200);
+    const logs = await getAuditLogs(limit);
+    res.json({ logs });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -455,6 +597,18 @@ app.post('/api/admin/vouchers/create', adminAuth, async (req, res) => {
       vouchers.push(voucher);
     }
 
+    await addAuditLog({
+      action: 'voucher_created',
+      actor: req.adminId || 'admin',
+      targetUser: normalizedUsername || null,
+      paymentId: null,
+      details: {
+        planId,
+        quantity,
+        voucherCodes: vouchers.map(v => v.code)
+      }
+    });
+
     res.json({ vouchers });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -475,4 +629,19 @@ app.listen(config.port, async () => {
   } catch (err) {
     console.error(`[XUI] Failed to connect:`, err.message);
   }
+
+  // Стартуем фоновую проверку напоминаний
+  try {
+    await processExpiryReminders();
+  } catch (err) {
+    console.error('[Reminder] Initial run failed:', err.message);
+  }
+
+  setInterval(async () => {
+    try {
+      await processExpiryReminders();
+    } catch (err) {
+      console.error('[Reminder] Scheduled run failed:', err.message);
+    }
+  }, 10 * 60 * 1000);
 });

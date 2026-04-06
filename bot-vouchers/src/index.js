@@ -273,7 +273,16 @@ bot.command('cancel', async (ctx) => {
 
 // Запуск
 console.log('🤖 VPN Vouchers Bot starting...');
-bot.launch();
+
+if (config.webhookUrl) {
+  const webhookUrl = `${config.webhookUrl.replace(/\/$/, '')}${config.webhookPath}`;
+  await bot.telegram.setWebhook(webhookUrl);
+  bot.startWebhook(config.webhookPath, null, config.webhookPort);
+  console.log(`🌐 Webhook mode enabled: ${webhookUrl}`);
+} else {
+  await bot.launch();
+  console.log('📡 Polling mode enabled');
+}
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
